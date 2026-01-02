@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
-import { format, addDays, subDays, startOfDay, addHours, isSameHour, isWithinInterval, isSameDay } from 'date-fns';
+import { format, addDays, subDays, startOfDay, addHours, isSameHour, isSameDay, differenceInMinutes } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useTaskStore } from '@/store/taskStore';
@@ -11,17 +11,20 @@ import { Task } from '@/types/task';
 import { cn } from '@/lib/utils';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const HOUR_HEIGHT = 80; // pixels per hour
 
 // Task item component with timer for active tasks
 const TaskItem = ({ 
   task, 
   isActive, 
-  position, 
+  style,
+  isOverlapping,
   onClick 
 }: { 
   task: Task; 
   isActive: boolean; 
-  position: { top: string }; 
+  style: { top: number; height: number; left?: string; right?: string; zIndex?: number };
+  isOverlapping: boolean;
   onClick: () => void;
 }) => {
   const { percentage, remainingTime, isUrgent, isWarning } = useTaskTimer(isActive ? task : null);
@@ -40,14 +43,18 @@ const TaskItem = ({
       className={cn(
         'absolute rounded-xl cursor-pointer overflow-hidden',
         'transition-all duration-200 hover:ring-2 hover:ring-primary/20',
-        'left-2 right-4 md:left-4 md:right-8', // Better spacing on sides
         isActive 
           ? 'bg-primary text-primary-foreground shadow-lg' 
-          : 'bg-primary/10 text-foreground border border-border/50'
+          : isOverlapping 
+            ? 'bg-yellow-500 dark:bg-yellow-600 text-foreground border border-yellow-600 dark:border-yellow-500'
+            : 'bg-primary text-primary-foreground border border-primary/50'
       )}
       style={{
-        top: position.top,
-        minHeight: '56px',
+        top: `${style.top}px`,
+        height: `${Math.max(style.height, 56)}px`,
+        left: style.left || '8px',
+        right: style.right || '16px',
+        zIndex: style.zIndex || 1,
       }}
     >
       <div className="flex items-start justify-between p-3 gap-3">
@@ -55,14 +62,15 @@ const TaskItem = ({
         <div className="flex-1 min-w-0">
           <p className={cn(
             'text-sm md:text-base font-semibold truncate',
-            isActive && 'text-primary-foreground'
+            (isActive || !isOverlapping) && 'text-primary-foreground',
+            isOverlapping && !isActive && 'text-yellow-900 dark:text-yellow-100'
           )}>
             {task.title}
           </p>
           {task.location && (
             <p className={cn(
               'text-xs truncate mt-0.5',
-              isActive ? 'text-primary-foreground/80' : 'text-muted-foreground'
+              (isActive || !isOverlapping) ? 'text-primary-foreground/80' : 'text-yellow-800 dark:text-yellow-200'
             )}>
               {task.location}
             </p>
@@ -100,6 +108,16 @@ const TaskItem = ({
   );
 };
 
+// Helper to check if two tasks overlap
+const tasksOverlap = (task1: Task, task2: Task): boolean => {
+  return task1.startTime < task2.endTime && task2.startTime < task1.endTime;
+};
+
+// Helper to get task duration in minutes
+const getTaskDuration = (task: Task): number => {
+  return differenceInMinutes(task.endTime, task.startTime);
+};
+
 const DayViewPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -120,12 +138,78 @@ const DayViewPage = () => {
   const tasks = getTasksForDay(selectedDate);
   const currentTask = getCurrentTask();
 
+  // Calculate task positions and overlapping info
+  const processedTasks = useMemo(() => {
+    const dayStart = startOfDay(selectedDate);
+    
+    // Sort tasks by duration (longest first) then by start time
+    const sortedTasks = [...tasks].sort((a, b) => {
+      const durationDiff = getTaskDuration(b) - getTaskDuration(a);
+      if (durationDiff !== 0) return durationDiff;
+      return a.startTime.getTime() - b.startTime.getTime();
+    });
+
+    // Find the longest task for each overlapping group
+    const longestTaskIds = new Set<string>();
+    const processed: { task: Task; isOverlapping: boolean; style: { top: number; height: number; left?: string; right?: string; zIndex?: number } }[] = [];
+    
+    // Group overlapping tasks and mark the longest one
+    for (const task of sortedTasks) {
+      const overlappingWithLonger = sortedTasks.some(
+        other => other.id !== task.id && 
+                 tasksOverlap(task, other) && 
+                 getTaskDuration(other) > getTaskDuration(task)
+      );
+      
+      if (!overlappingWithLonger) {
+        longestTaskIds.add(task.id);
+      }
+    }
+
+    // Calculate positions for each task
+    for (const task of tasks) {
+      const startMinutes = differenceInMinutes(task.startTime, dayStart);
+      const endMinutes = differenceInMinutes(task.endTime, dayStart);
+      const durationMinutes = endMinutes - startMinutes;
+      
+      const top = (startMinutes / 60) * HOUR_HEIGHT;
+      const height = (durationMinutes / 60) * HOUR_HEIGHT;
+      
+      const isLongest = longestTaskIds.has(task.id);
+      const hasOverlap = tasks.some(other => other.id !== task.id && tasksOverlap(task, other));
+      
+      // If overlapping and not the longest, offset position slightly
+      const style: { top: number; height: number; left?: string; right?: string; zIndex?: number } = {
+        top,
+        height,
+      };
+      
+      if (hasOverlap && !isLongest) {
+        // Shorter overlapping tasks get offset and higher z-index
+        style.left = '24px';
+        style.right = '8px';
+        style.zIndex = 10;
+      } else {
+        style.left = '8px';
+        style.right = '16px';
+        style.zIndex = isLongest ? 5 : 1;
+      }
+      
+      processed.push({
+        task,
+        isOverlapping: hasOverlap && !isLongest,
+        style,
+      });
+    }
+    
+    return processed;
+  }, [tasks, selectedDate]);
+
   // Auto-scroll to current hour on mount and when viewing today
   useEffect(() => {
     if (timelineRef.current && isSameDay(selectedDate, new Date())) {
       const currentHour = new Date().getHours();
-      const hourHeight = 80; // Height of each hour row
-      const scrollPosition = Math.max(0, (currentHour - 1) * hourHeight);
+      const scrollPosition = Math.max(0, (currentHour - 1) * HOUR_HEIGHT);
       
       setTimeout(() => {
         timelineRef.current?.scrollTo({
@@ -162,27 +246,6 @@ const DayViewPage = () => {
     } else if (isLeftSwipe) {
       goToNextDay(); // Swipe left = later date
     }
-  };
-
-  const getTasksForHour = (hour: number) => {
-    const hourStart = addHours(startOfDay(selectedDate), hour);
-    const hourEnd = addHours(hourStart, 1);
-    
-    return tasks.filter(task => 
-      isWithinInterval(hourStart, { start: task.startTime, end: task.endTime }) ||
-      isWithinInterval(task.startTime, { start: hourStart, end: hourEnd })
-    );
-  };
-
-  const getTaskPosition = (task: Task, hour: number) => {
-    const hourStart = addHours(startOfDay(selectedDate), hour);
-    const taskStartMinutes = task.startTime.getMinutes();
-    const top = (taskStartMinutes / 60) * 100;
-    
-    const taskDurationMinutes = (task.endTime.getTime() - task.startTime.getTime()) / (1000 * 60);
-    const height = Math.min((taskDurationMinutes / 60) * 100, 100 - top);
-
-    return { top: `${top}%`, height: `${height}%` };
   };
 
   return (
@@ -230,8 +293,8 @@ const DayViewPage = () => {
           onTouchEnd={onTouchEnd}
         >
           <div className="relative">
+            {/* Hour grid lines */}
             {HOURS.map((hour) => {
-              const hourTasks = getTasksForHour(hour);
               const now = new Date();
               const isCurrentHour = isSameHour(addHours(startOfDay(selectedDate), hour), now);
 
@@ -239,7 +302,7 @@ const DayViewPage = () => {
                 <div 
                   key={hour}
                   className="flex border-b border-border/50 relative"
-                  style={{ height: '80px' }}
+                  style={{ height: `${HOUR_HEIGHT}px` }}
                 >
                   {/* Time label */}
                   <div className="w-16 flex-shrink-0 px-2 py-1 text-left">
@@ -251,37 +314,40 @@ const DayViewPage = () => {
                     </span>
                   </div>
 
-                  {/* Task area */}
+                  {/* Empty task area for grid */}
                   <div className="flex-1 relative">
                     {/* Current time indicator */}
                     {isCurrentHour && (
                       <div 
-                        className="absolute left-0 right-0 h-0.5 bg-primary z-10"
+                        className="absolute left-0 right-0 h-0.5 bg-primary z-20"
                         style={{ top: `${(now.getMinutes() / 60) * 100}%` }}
                       >
                         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-primary" />
                       </div>
                     )}
-
-                    {/* Tasks */}
-                    {hourTasks.map((task) => {
-                      const position = getTaskPosition(task, hour);
-                      const isActive = currentTask?.id === task.id;
-
-                      return (
-                        <TaskItem
-                          key={`${task.id}-${hour}`}
-                          task={task}
-                          isActive={isActive}
-                          position={position}
-                          onClick={() => navigate(`/task/${task.id}`)}
-                        />
-                      );
-                    })}
                   </div>
                 </div>
               );
             })}
+
+            {/* Tasks layer - rendered once per task, spanning full duration */}
+            <div className="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">
+              {processedTasks.map(({ task, isOverlapping, style }) => {
+                const isActive = currentTask?.id === task.id;
+                
+                return (
+                  <div key={task.id} className="pointer-events-auto">
+                    <TaskItem
+                      task={task}
+                      isActive={isActive}
+                      style={style}
+                      isOverlapping={isOverlapping}
+                      onClick={() => navigate(`/task/${task.id}`)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
