@@ -57,9 +57,9 @@ const TaskItem = ({
         zIndex: style.zIndex || 1,
       }}
     >
-      <div className="flex items-start justify-between p-3 gap-3">
-        {/* Task info */}
-        <div className="flex-1 min-w-0">
+      <div className="flex items-start justify-between p-3 pr-16 gap-4">
+        {/* Task info - pushed more to center with right padding for hour labels */}
+        <div className="flex-1 min-w-0 mr-4">
           <p className={cn(
             'text-sm md:text-base font-semibold truncate',
             (isActive || !isOverlapping) && 'text-primary-foreground',
@@ -319,17 +319,17 @@ const DayViewPage = () => {
                   className="flex border-b border-border/50 relative"
                   style={{ height: `${HOUR_HEIGHT}px` }}
                 >
-                  {/* Time label - changes color when task is present */}
-                  <div className="w-16 flex-shrink-0 px-2 py-1 text-left relative z-30">
+                  {/* Time label - bold black normally, white on blue when task present */}
+                  <div className="w-16 flex-shrink-0 px-2 py-1 text-left relative z-40">
                     <span className={cn(
-                      'text-xs font-bold px-1 py-0.5 rounded',
+                      'text-sm font-extrabold px-1.5 py-1 rounded inline-block',
                       taskInfo.hasTask 
                         ? taskInfo.isYellow 
-                          ? 'text-black bg-yellow-500/90' 
-                          : 'text-white bg-primary/90'
+                          ? 'text-black bg-yellow-400 shadow-sm' 
+                          : 'text-white bg-blue-700 shadow-sm'
                         : isCurrentHour 
-                          ? 'text-primary' 
-                          : 'text-muted-foreground'
+                          ? 'text-blue-900 dark:text-blue-300 font-black' 
+                          : 'text-gray-900 dark:text-gray-100'
                     )}>
                       {hour.toString().padStart(2, '0')}:00
                     </span>
