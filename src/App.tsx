@@ -11,6 +11,8 @@ import AddTaskPage from "./pages/AddTaskPage";
 import StandbyPage from "./pages/StandbyPage";
 import SettingsPage from "./pages/SettingsPage";
 import StatisticsPage from "./pages/StatisticsPage";
+import ArchivePage from "./pages/ArchivePage";
+import AboutPage from "./pages/AboutPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +32,8 @@ const App = () => (
           <Route path="/standby" element={<StandbyPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/statistics" element={<StatisticsPage />} />
+          <Route path="/archive" element={<ArchivePage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -38,6 +38,9 @@ interface TaskState {
   
   // History
   addHistoryEntry: (taskId: string, entry: Omit<HistoryEntry, 'id' | 'taskId' | 'timestamp'>) => void;
+  
+  // Archive
+  clearArchive: () => void;
 }
 
 
@@ -224,6 +227,10 @@ export const useTaskStore = create<TaskState>()(
               : task
           ),
         }));
+      },
+
+      clearArchive: () => {
+        set({ archivedTasks: [] });
       },
 
       // Template Actions

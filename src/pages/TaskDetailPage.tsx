@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, MapPin, Clock, Tag, FileText, Edit2, CalendarDays, Check } from 'lucide-react';
+import { ArrowRight, MapPin, Clock, Tag, FileText, CalendarDays, Check } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -71,12 +71,7 @@ const TaskDetailPage = () => {
             
             <h1 className="text-lg font-bold">פרטי משימה</h1>
             
-            <button 
-              onClick={() => navigate(`/task/${task.id}/edit`)}
-              className="p-2 rounded-full hover:bg-secondary transition-colors"
-            >
-              <Edit2 className="w-5 h-5" />
-            </button>
+            <div className="w-10" />
           </div>
         </header>
 

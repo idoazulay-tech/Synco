@@ -1,23 +1,11 @@
 import { motion } from 'framer-motion';
-import { ChevronLeft, Bell, Palette, Info, BarChart3, Archive } from 'lucide-react';
+import { ChevronLeft, Info, BarChart3, Archive } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useTaskStore } from '@/store/taskStore';
 import { cn } from '@/lib/utils';
 
 const settingsItems = [
-  {
-    icon: Bell,
-    title: 'התראות',
-    description: 'נהל הגדרות התראות ותזכורות',
-    path: '/settings/notifications',
-  },
-  {
-    icon: Palette,
-    title: 'מראה',
-    description: 'התאמה אישית של צבעים ועיצוב',
-    path: '/settings/appearance',
-  },
   {
     icon: BarChart3,
     title: 'סטטיסטיקות',
