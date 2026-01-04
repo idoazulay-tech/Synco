@@ -18,33 +18,21 @@ export const BottomNav = () => {
 
   return (
     <div className="fixed bottom-0 inset-x-0 z-40">
-      {/* Sunset FAB - positioned above nav, half hidden like sun touching water */}
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-16 z-50 pointer-events-none">
-        {/* Clip container - shows only top half of the sun */}
-        <div className="relative overflow-hidden" style={{ height: '32px' }}>
-          <motion.button
-            onClick={() => navigate('/add')}
-            className="pointer-events-auto w-16 h-16 rounded-full flex items-center justify-center shadow-lg"
-            style={{
-              background: 'linear-gradient(180deg, #FF6B35 0%, #F7931E 30%, #FFD93D 70%, #FFF8DC 100%)',
-              boxShadow: '0 -4px 20px rgba(255, 107, 53, 0.5), 0 0 30px rgba(247, 147, 30, 0.3)',
-            }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            data-testid="button-add-task"
-          >
-            <Plus className="w-7 h-7 text-white drop-shadow-md" style={{ marginTop: '-16px' }} />
-          </motion.button>
-        </div>
-        
-        {/* Reflection effect on the "water" */}
-        <div 
-          className="absolute left-1/2 -translate-x-1/2 w-12 h-4 blur-sm opacity-30"
+      {/* FAB - centered and prominent above nav */}
+      <div className="absolute left-1/2 -translate-x-1/2 bottom-8 z-50">
+        <motion.button
+          onClick={() => navigate('/add')}
+          className="w-14 h-14 rounded-full flex items-center justify-center shadow-xl"
           style={{
-            background: 'linear-gradient(180deg, #FFD93D 0%, transparent 100%)',
-            top: '32px',
+            background: 'linear-gradient(135deg, #FF6B35 0%, #F7931E 50%, #FFD93D 100%)',
+            boxShadow: '0 4px 20px rgba(255, 107, 53, 0.4), 0 2px 10px rgba(247, 147, 30, 0.3)',
           }}
-        />
+          whileHover={{ scale: 1.08, y: -2 }}
+          whileTap={{ scale: 0.95 }}
+          data-testid="button-add-task"
+        >
+          <Plus className="w-7 h-7 text-white drop-shadow-md" />
+        </motion.button>
       </div>
 
       {/* Navigation bar - the "water" */}
@@ -52,7 +40,7 @@ export const BottomNav = () => {
         <div className="flex items-center justify-center h-16 max-w-lg mx-auto px-2 gap-1">
           {navItems.map((item, index) => {
             const isActive = location.pathname === item.path;
-            const insertFabAfter = index === 1;
+            const insertFabAfter = index === 2;
             
             return (
               <Fragment key={item.path}>
