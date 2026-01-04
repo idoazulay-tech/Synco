@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Home, Calendar, CalendarDays, Archive, Settings, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -48,59 +49,35 @@ export const BottomNav = () => {
 
       {/* Navigation bar - the "water" */}
       <nav className="bg-card/95 backdrop-blur-lg border-t border-border safe-area-pb">
-        <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-4">
-          {navItems.slice(0, 2).map((item) => {
+        <div className="flex items-center justify-center h-16 max-w-lg mx-auto px-2 gap-1">
+          {navItems.map((item, index) => {
             const isActive = location.pathname === item.path;
+            const insertFabAfter = index === 1;
             
             return (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className={cn(
-                  'relative flex flex-col items-center justify-center w-16 h-full gap-1',
-                  'transition-colors duration-200',
-                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+              <Fragment key={item.path}>
+                <button
+                  onClick={() => navigate(item.path)}
+                  className={cn(
+                    'relative flex flex-col items-center justify-center flex-1 h-full gap-1',
+                    'transition-colors duration-200',
+                    isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  data-testid={`nav-${item.path.slice(1) || 'home'}`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="nav-indicator"
+                      className="absolute -top-px inset-x-2 h-0.5 bg-primary rounded-full"
+                    />
+                  )}
+                  <item.icon className="w-5 h-5" />
+                  <span className="text-xs font-medium">{item.label}</span>
+                </button>
+                {insertFabAfter && (
+                  <div className="w-16 h-full flex-shrink-0" />
                 )}
-                data-testid={`nav-${item.path.slice(1) || 'home'}`}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="nav-indicator"
-                    className="absolute -top-px inset-x-2 h-0.5 bg-primary rounded-full"
-                  />
-                )}
-                <item.icon className="w-5 h-5" />
-                <span className="text-xs font-medium">{item.label}</span>
-              </button>
-            );
-          })}
-          
-          {/* Empty space for the FAB */}
-          <div className="w-16 h-full" />
-          
-          {navItems.slice(2).map((item) => {
-            const isActive = location.pathname === item.path;
-            
-            return (
-              <button
-                key={item.path}
-                onClick={() => navigate(item.path)}
-                className={cn(
-                  'relative flex flex-col items-center justify-center w-16 h-full gap-1',
-                  'transition-colors duration-200',
-                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                )}
-                data-testid={`nav-${item.path.slice(1)}`}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="nav-indicator"
-                    className="absolute -top-px inset-x-2 h-0.5 bg-primary rounded-full"
-                  />
-                )}
-                <item.icon className="w-5 h-5" />
-                <span className="text-xs font-medium">{item.label}</span>
-              </button>
+              </Fragment>
             );
           })}
         </div>
