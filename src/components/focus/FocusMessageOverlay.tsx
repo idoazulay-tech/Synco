@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getZoneForPercentage, getRandomMessage, FocusZone } from '@/lib/focusMessages';
+import { getZoneForPercentage, getRandomMessage } from '@/lib/focusMessages';
 
 interface FocusMessageOverlayProps {
   percentage: number;
@@ -8,36 +8,29 @@ interface FocusMessageOverlayProps {
 
 export function FocusMessageOverlay({ percentage }: FocusMessageOverlayProps) {
   const [currentMessage, setCurrentMessage] = useState('');
-  const [currentZoneId, setCurrentZoneId] = useState<number | null>(null);
-  const previousZoneIdRef = useRef<number | null>(null);
+  const [displayedZoneId, setDisplayedZoneId] = useState<number | null>(null);
+  const maxZoneReachedRef = useRef<number>(0);
 
   useEffect(() => {
     const zone = getZoneForPercentage(percentage);
     
-    if (zone.id !== currentZoneId) {
-      if (previousZoneIdRef.current === null || zone.id > previousZoneIdRef.current) {
-        setCurrentZoneId(zone.id);
-        setCurrentMessage(getRandomMessage(zone));
-        previousZoneIdRef.current = zone.id;
-      }
-    }
-  }, [percentage, currentZoneId]);
-
-  useEffect(() => {
-    if (currentZoneId === null) {
-      const zone = getZoneForPercentage(percentage);
-      setCurrentZoneId(zone.id);
+    if (zone.id > maxZoneReachedRef.current) {
+      maxZoneReachedRef.current = zone.id;
+      setDisplayedZoneId(zone.id);
       setCurrentMessage(getRandomMessage(zone));
-      previousZoneIdRef.current = zone.id;
+    } else if (displayedZoneId === null) {
+      setDisplayedZoneId(zone.id);
+      setCurrentMessage(getRandomMessage(zone));
+      maxZoneReachedRef.current = zone.id;
     }
-  }, []);
+  }, [percentage, displayedZoneId]);
 
   if (!currentMessage) return null;
 
   return (
     <AnimatePresence mode="wait">
       <motion.div
-        key={currentZoneId}
+        key={displayedZoneId}
         initial={{ opacity: 0, y: 5 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -5 }}
