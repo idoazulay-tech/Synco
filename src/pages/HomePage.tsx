@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Inbox, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
-import { format, addHours, startOfDay, differenceInMinutes, differenceInHours, differenceInDays, addDays } from 'date-fns';
+import { motion } from 'framer-motion';
+import { Calendar, Inbox, Clock } from 'lucide-react';
+import { format, differenceInMinutes, differenceInHours, differenceInDays, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CircularProgress } from '@/components/timer/CircularProgress';
@@ -12,9 +12,7 @@ import { FocusMessageOverlay } from '@/components/focus/FocusMessageOverlay';
 import { useTaskStore } from '@/store/taskStore';
 import { useTaskTimer } from '@/hooks/useTaskTimer';
 import { Task } from '@/types/task';
-import { cn } from '@/lib/utils';
-
-const MINI_HOUR_HEIGHT = 40;
+import { CompactSchedule, ScheduleToggle } from '@/components/layout/CompactSchedule';
 
 const formatTimeUntil = (targetTime: Date): string => {
   const now = new Date();
@@ -99,125 +97,10 @@ const NextTaskBanner = ({ task, onClick }: { task: Task; onClick: () => void }) 
   );
 };
 
-const CompactSchedule = ({ 
-  tasks, 
-  currentTask, 
-  isOpen, 
-  onClose 
-}: { 
-  tasks: Task[]; 
-  currentTask: Task | null;
-  isOpen: boolean;
-  onClose: () => void;
-}) => {
-  const navigate = useNavigate();
-  const now = new Date();
-  const currentHour = now.getHours();
-  const dayStart = startOfDay(now);
-  
-  const visibleHours = Array.from({ length: 8 }, (_, i) => Math.min(23, currentHour - 1 + i));
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ x: '100%', opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: '100%', opacity: 0 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="fixed top-0 right-0 bottom-0 w-24 bg-background/95 backdrop-blur-sm border-l border-border z-40 shadow-xl"
-        >
-          <div className="h-full flex flex-col">
-            <button
-              onClick={onClose}
-              className="p-2 border-b border-border flex items-center justify-center hover:bg-secondary transition-colors"
-              data-testid="button-close-schedule"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-
-            <div className="flex-1 overflow-y-auto">
-              <div className="relative">
-                {visibleHours.map((hour) => {
-                  const isCurrentHour = hour === currentHour;
-
-                  return (
-                    <div 
-                      key={hour}
-                      className={cn(
-                        "relative border-b border-border/30",
-                        isCurrentHour && "bg-primary/5"
-                      )}
-                      style={{ height: `${MINI_HOUR_HEIGHT}px` }}
-                    >
-                      <span className="absolute top-0 left-1 text-[10px] text-muted-foreground">
-                        {hour.toString().padStart(2, '0')}
-                      </span>
-                      
-                      {isCurrentHour && (
-                        <div 
-                          className="absolute left-0 right-0 h-0.5 bg-red-500 z-10"
-                          style={{ top: `${(now.getMinutes() / 60) * 100}%` }}
-                        />
-                      )}
-                    </div>
-                  );
-                })}
-
-                <div className="absolute top-0 left-8 right-1">
-                  {tasks.filter(task => {
-                    const taskHour = task.startTime.getHours();
-                    return taskHour >= visibleHours[0] && taskHour <= visibleHours[visibleHours.length - 1];
-                  }).map(task => {
-                    const startMinutes = differenceInMinutes(task.startTime, addHours(dayStart, visibleHours[0]));
-                    const durationMinutes = differenceInMinutes(task.endTime, task.startTime);
-                    const top = (startMinutes / 60) * MINI_HOUR_HEIGHT;
-                    const height = (durationMinutes / 60) * MINI_HOUR_HEIGHT;
-                    const isActive = currentTask?.id === task.id;
-
-                    return (
-                      <div
-                        key={task.id}
-                        onClick={() => navigate(`/task/${task.id}`)}
-                        className={cn(
-                          "absolute left-0 right-0 rounded px-1 text-[8px] truncate cursor-pointer",
-                          isActive 
-                            ? "bg-primary text-primary-foreground" 
-                            : "bg-secondary text-secondary-foreground"
-                        )}
-                        style={{
-                          top: `${Math.max(0, top)}px`,
-                          height: `${Math.max(16, height)}px`,
-                        }}
-                        data-testid={`mini-task-${task.id}`}
-                      >
-                        {task.title}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => navigate('/day')}
-              className="p-2 border-t border-border text-[10px] text-center text-primary hover:bg-secondary transition-colors"
-              data-testid="button-open-full-calendar"
-            >
-              לוח מלא
-            </button>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-};
-
 const HomePage = () => {
   const navigate = useNavigate();
   const { getCurrentTask, getTasksForDay, completeTask } = useTaskStore();
   const currentTask = getCurrentTask();
-  const todayTasks = getTasksForDay(new Date());
 
   const [showSchedule, setShowSchedule] = useState(false);
 
@@ -271,13 +154,7 @@ const HomePage = () => {
     return (
       <AppLayout>
         <div className="min-h-screen flex flex-col items-center justify-center p-6 pb-32 relative">
-          <button
-            onClick={() => setShowSchedule(true)}
-            className="fixed right-0 top-1/2 -translate-y-1/2 bg-secondary/80 hover:bg-secondary p-1 rounded-l-lg shadow-md z-30 transition-colors"
-            data-testid="button-open-schedule"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+          <ScheduleToggle onClick={() => setShowSchedule(true)} />
 
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
@@ -299,10 +176,9 @@ const HomePage = () => {
           )}
 
           <CompactSchedule 
-            tasks={todayTasks} 
-            currentTask={currentTask}
             isOpen={showSchedule} 
-            onClose={() => setShowSchedule(false)} 
+            onClose={() => setShowSchedule(false)}
+            currentTaskId={currentTask?.id}
           />
         </div>
       </AppLayout>
@@ -312,13 +188,7 @@ const HomePage = () => {
   return (
     <AppLayout>
       <div className="min-h-screen flex flex-col relative pb-32">
-        <button
-          onClick={() => setShowSchedule(true)}
-          className="fixed right-0 top-1/2 -translate-y-1/2 bg-secondary/80 hover:bg-secondary p-1 rounded-l-lg shadow-md z-30 transition-colors"
-          data-testid="button-open-schedule"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
+        <ScheduleToggle onClick={() => setShowSchedule(true)} />
 
         <header className="p-4 flex items-center justify-between">
           <button 
@@ -391,10 +261,9 @@ const HomePage = () => {
         />
 
         <CompactSchedule 
-          tasks={todayTasks} 
-          currentTask={currentTask}
           isOpen={showSchedule} 
-          onClose={() => setShowSchedule(false)} 
+          onClose={() => setShowSchedule(false)}
+          currentTaskId={currentTask.id}
         />
       </div>
     </AppLayout>

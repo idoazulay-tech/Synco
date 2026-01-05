@@ -8,6 +8,7 @@ import DayViewPage from "./pages/DayViewPage";
 import MonthViewPage from "./pages/MonthViewPage";
 import TaskDetailPage from "./pages/TaskDetailPage";
 import AddTaskPage from "./pages/AddTaskPage";
+import RescheduleTaskPage from "./pages/RescheduleTaskPage";
 import StandbyPage from "./pages/StandbyPage";
 import SettingsPage from "./pages/SettingsPage";
 import StatisticsPage from "./pages/StatisticsPage";
@@ -28,6 +29,7 @@ const App = () => (
           <Route path="/day" element={<DayViewPage />} />
           <Route path="/month" element={<MonthViewPage />} />
           <Route path="/task/:id" element={<TaskDetailPage />} />
+          <Route path="/task/:id/reschedule" element={<RescheduleTaskPage />} />
           <Route path="/add" element={<AddTaskPage />} />
           <Route path="/standby" element={<StandbyPage />} />
           <Route path="/settings" element={<SettingsPage />} />

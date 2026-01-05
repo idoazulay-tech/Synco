@@ -2,27 +2,20 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, MapPin, Clock, Tag, FileText, CalendarDays, Check } from 'lucide-react';
-import { format, addDays } from 'date-fns';
+import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { useTaskStore } from '@/store/taskStore';
 import { useTaskTimer } from '@/hooks/useTaskTimer';
 import { cn } from '@/lib/utils';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { CompactSchedule, ScheduleToggle } from '@/components/layout/CompactSchedule';
 
 const TaskDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [showReschedule, setShowReschedule] = useState(false);
-  const { getTaskById, completeTask, updateTask, getCurrentTask } = useTaskStore();
+  const [showSchedule, setShowSchedule] = useState(false);
+  const { getTaskById, completeTask, getCurrentTask } = useTaskStore();
   const task = id ? getTaskById(id) : undefined;
   const currentTask = getCurrentTask();
   const isActiveTask = task && currentTask && task.id === currentTask.id;
@@ -44,22 +37,15 @@ const TaskDetailPage = () => {
     navigate('/');
   };
 
-  const handleReschedule = (daysToAdd: number) => {
-    const newStartTime = addDays(task.startTime, daysToAdd);
-    const newEndTime = addDays(task.endTime, daysToAdd);
-    updateTask(task.id, { 
-      startTime: newStartTime, 
-      endTime: newEndTime,
-      status: 'pending'
-    });
-    setShowReschedule(false);
-    navigate('/');
+  const handleReschedule = () => {
+    navigate(`/task/${task.id}/reschedule`);
   };
 
   return (
     <AppLayout>
       <div className="min-h-screen">
-        {/* Header */}
+        <ScheduleToggle onClick={() => setShowSchedule(true)} />
+
         <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border">
           <div className="flex items-center justify-between p-4">
             <button 
@@ -75,9 +61,7 @@ const TaskDetailPage = () => {
           </div>
         </header>
 
-        {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Progress bar for active task */}
           {isActiveTask && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -109,7 +93,6 @@ const TaskDetailPage = () => {
             </motion.div>
           )}
 
-          {/* Title & Status */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -125,7 +108,6 @@ const TaskDetailPage = () => {
             </div>
           </motion.div>
 
-          {/* Time */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -143,7 +125,6 @@ const TaskDetailPage = () => {
             </div>
           </motion.div>
 
-          {/* Location */}
           {task.location && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -156,7 +137,6 @@ const TaskDetailPage = () => {
             </motion.div>
           )}
 
-          {/* Description */}
           {task.description && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -172,7 +152,6 @@ const TaskDetailPage = () => {
             </motion.div>
           )}
 
-          {/* Tags */}
           {task.tags.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -202,7 +181,6 @@ const TaskDetailPage = () => {
             </motion.div>
           )}
 
-          {/* History */}
           {task.history.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -232,72 +210,36 @@ const TaskDetailPage = () => {
           )}
         </div>
 
-        {/* Actions */}
         <div className="fixed bottom-20 inset-x-0 p-4 bg-gradient-to-t from-background via-background to-transparent">
           <div className="flex gap-3 max-w-lg mx-auto">
-            <Dialog open={showReschedule} onOpenChange={setShowReschedule}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="lg" className="flex-1 gap-2">
-                  <CalendarDays className="w-4 h-4" />
-                  הזז לתאריך
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-sm">
-                <DialogHeader>
-                  <DialogTitle>הזזת משימה</DialogTitle>
-                  <DialogDescription>
-                    בחר מתי להזיז את "{task.title}"
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => handleReschedule(1)}
-                    className="h-16 flex-col gap-1"
-                  >
-                    <span className="text-lg font-bold">מחר</span>
-                    <span className="text-xs text-muted-foreground">
-                      {format(addDays(new Date(), 1), 'd/M')}
-                    </span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => handleReschedule(2)}
-                    className="h-16 flex-col gap-1"
-                  >
-                    <span className="text-lg font-bold">מחרתיים</span>
-                    <span className="text-xs text-muted-foreground">
-                      {format(addDays(new Date(), 2), 'd/M')}
-                    </span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => handleReschedule(7)}
-                    className="h-16 flex-col gap-1"
-                  >
-                    <span className="text-lg font-bold">עוד שבוע</span>
-                    <span className="text-xs text-muted-foreground">
-                      {format(addDays(new Date(), 7), 'd/M')}
-                    </span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => navigate('/month')}
-                    className="h-16 flex-col gap-1"
-                  >
-                    <span className="text-lg font-bold">בחר תאריך</span>
-                    <span className="text-xs text-muted-foreground">מהיומן</span>
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button 
+              variant="outline" 
+              size="lg" 
+              onClick={handleReschedule}
+              className="flex-1 gap-2"
+              data-testid="button-reschedule"
+            >
+              <CalendarDays className="w-4 h-4" />
+              הזז קדימה
+            </Button>
 
-            <Button size="lg" onClick={handleComplete} className="flex-1 gap-2 bg-success hover:bg-success/90">
+            <Button 
+              size="lg" 
+              onClick={handleComplete} 
+              className="flex-1 gap-2 bg-success hover:bg-success/90"
+              data-testid="button-complete"
+            >
               <Check className="w-4 h-4" />
               סיים משימה
             </Button>
           </div>
         </div>
+
+        <CompactSchedule 
+          isOpen={showSchedule} 
+          onClose={() => setShowSchedule(false)}
+          currentTaskId={task.id}
+        />
       </div>
     </AppLayout>
   );
