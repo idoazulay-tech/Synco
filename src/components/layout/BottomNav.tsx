@@ -18,21 +18,30 @@ export const BottomNav = () => {
 
   return (
     <div className="fixed bottom-0 inset-x-0 z-40">
-      {/* FAB - centered and prominent above nav */}
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-8 z-50">
-        <motion.button
-          onClick={() => navigate('/add')}
-          className="w-14 h-14 rounded-full flex items-center justify-center shadow-xl"
+      {/* Sunset FAB - positioned above nav, 10% hidden by toolbar like sun on horizon */}
+      <div className="absolute left-1/2 -translate-x-1/2 bottom-[52px] z-50 pointer-events-none">
+        <div className="relative overflow-hidden" style={{ height: '50px' }}>
+          <motion.button
+            onClick={() => navigate('/add')}
+            className="pointer-events-auto w-14 h-14 rounded-full flex items-center justify-center"
+            style={{
+              background: 'linear-gradient(180deg, #FF6B35 0%, #F7931E 40%, #FFD93D 80%, #FFF8DC 100%)',
+              boxShadow: '0 -4px 20px rgba(255, 107, 53, 0.5), 0 0 30px rgba(247, 147, 30, 0.3)',
+            }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            data-testid="button-add-task"
+          >
+            <Plus className="w-7 h-7 text-white drop-shadow-md" style={{ marginTop: '-6px' }} />
+          </motion.button>
+        </div>
+        <div 
+          className="absolute left-1/2 -translate-x-1/2 w-10 h-3 blur-sm opacity-40"
           style={{
-            background: 'linear-gradient(135deg, #FF6B35 0%, #F7931E 50%, #FFD93D 100%)',
-            boxShadow: '0 4px 20px rgba(255, 107, 53, 0.4), 0 2px 10px rgba(247, 147, 30, 0.3)',
+            background: 'linear-gradient(180deg, #FFD93D 0%, transparent 100%)',
+            top: '50px',
           }}
-          whileHover={{ scale: 1.08, y: -2 }}
-          whileTap={{ scale: 0.95 }}
-          data-testid="button-add-task"
-        >
-          <Plus className="w-7 h-7 text-white drop-shadow-md" />
-        </motion.button>
+        />
       </div>
 
       {/* Navigation bar - the "water" */}
@@ -53,7 +62,13 @@ export const BottomNav = () => {
                   )}
                   data-testid={`nav-${item.path.slice(1) || 'home'}`}
                 >
-                  {isActive && (
+                  {isActive && item.path === '/' && (
+                    <motion.div
+                      layoutId="home-highlight"
+                      className="absolute inset-1 rounded-xl border-2 border-primary/60"
+                    />
+                  )}
+                  {isActive && item.path !== '/' && (
                     <motion.div
                       layoutId="nav-indicator"
                       className="absolute -top-px inset-x-2 h-0.5 bg-primary rounded-full"

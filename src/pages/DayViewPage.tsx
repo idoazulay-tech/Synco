@@ -43,11 +43,12 @@ const TaskItem = ({
       className={cn(
         'absolute rounded-xl cursor-pointer overflow-hidden',
         'transition-all duration-200 hover:ring-2 hover:ring-primary/20',
+        'border border-gray-800 dark:border-gray-300',
         isActive 
           ? 'bg-primary text-primary-foreground shadow-lg' 
           : isOverlapping 
-            ? 'bg-yellow-500 dark:bg-yellow-600 text-foreground border border-yellow-600 dark:border-yellow-500'
-            : 'bg-primary text-primary-foreground border border-primary/50'
+            ? 'bg-sky-300 dark:bg-sky-500 text-slate-900 dark:text-white'
+            : 'bg-primary text-primary-foreground'
       )}
       style={{
         top: `${style.top}px`,
@@ -63,14 +64,14 @@ const TaskItem = ({
           <p className={cn(
             'text-sm md:text-base font-semibold truncate',
             (isActive || !isOverlapping) && 'text-primary-foreground',
-            isOverlapping && !isActive && 'text-yellow-900 dark:text-yellow-100'
+            isOverlapping && !isActive && 'text-slate-900 dark:text-white'
           )}>
             {task.title}
           </p>
           {task.location && (
             <p className={cn(
               'text-xs truncate mt-0.5',
-              (isActive || !isOverlapping) ? 'text-primary-foreground/80' : 'text-yellow-800 dark:text-yellow-200'
+              (isActive || !isOverlapping) ? 'text-primary-foreground/80' : 'text-slate-800 dark:text-white/80'
             )}>
               {task.location}
             </p>
@@ -134,9 +135,18 @@ const DayViewPage = () => {
   const [selectedDate, setSelectedDate] = useState(getInitialDate);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
   const { getTasksForDay, getCurrentTask } = useTaskStore();
   const tasks = getTasksForDay(selectedDate);
   const currentTask = getCurrentTask();
+
+  // Update current time every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Calculate task positions and overlapping info
   const processedTasks = useMemo(() => {
@@ -309,8 +319,7 @@ const DayViewPage = () => {
           <div className="relative">
             {/* Hour grid lines */}
             {HOURS.map((hour) => {
-              const now = new Date();
-              const isCurrentHour = isSameHour(addHours(startOfDay(selectedDate), hour), now);
+              const isCurrentHour = isSameHour(addHours(startOfDay(selectedDate), hour), currentTime) && isSameDay(selectedDate, currentTime);
               const taskInfo = getTaskAtHour(hour);
 
               return (
@@ -325,7 +334,7 @@ const DayViewPage = () => {
                       'text-sm font-extrabold px-1.5 py-1 rounded inline-block',
                       taskInfo.hasTask 
                         ? taskInfo.isYellow 
-                          ? 'text-black bg-yellow-400 shadow-sm' 
+                          ? 'text-sky-900 bg-sky-300 shadow-sm' 
                           : 'text-white bg-blue-700 shadow-sm'
                         : isCurrentHour 
                           ? 'text-blue-900 dark:text-blue-300 font-black' 
@@ -337,14 +346,20 @@ const DayViewPage = () => {
 
                   {/* Empty task area for grid */}
                   <div className="flex-1 relative">
-                    {/* Current time indicator - dark blue, highest z-index for focus */}
+                    {/* Current time indicator - dark blue with time text */}
                     {isCurrentHour && (
                       <div 
                         className="absolute -left-16 right-0 h-1 bg-blue-900 dark:bg-blue-400 z-50 shadow-lg"
-                        style={{ top: `${(now.getMinutes() / 60) * 100}%` }}
+                        style={{ top: `${(currentTime.getMinutes() / 60) * 100}%` }}
                       >
                         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-900 dark:bg-blue-400 shadow-md" />
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-900 dark:bg-blue-400 shadow-md" />
+                        {/* Current time text badge on the left side of indicator */}
+                        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                          <div className="w-3 h-3 rounded-full bg-blue-900 dark:bg-blue-400 shadow-md" />
+                          <span className="text-xs font-bold text-blue-900 dark:text-blue-400 bg-background/95 px-1.5 py-0.5 rounded shadow-sm border border-blue-900/20 dark:border-blue-400/20">
+                            {format(currentTime, 'HH:mm')}
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>

@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Info, BarChart3, Archive } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useTaskStore } from '@/store/taskStore';
 import { cn } from '@/lib/utils';
@@ -30,6 +32,30 @@ const SettingsPage = () => {
   const navigate = useNavigate();
   const { archivedTasks, tasks } = useTaskStore();
 
+  const stats = useMemo(() => {
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    const todayEnd = endOfDay(now);
+    const weekStart = startOfWeek(now, { weekStartsOn: 0 });
+    const weekEnd = endOfWeek(now, { weekStartsOn: 0 });
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+
+    const todayCompleted = archivedTasks.filter(t => 
+      t.completedAt && isWithinInterval(new Date(t.completedAt), { start: todayStart, end: todayEnd })
+    ).length;
+
+    const weekCompleted = archivedTasks.filter(t => 
+      t.completedAt && isWithinInterval(new Date(t.completedAt), { start: weekStart, end: weekEnd })
+    ).length;
+
+    const monthCompleted = archivedTasks.filter(t => 
+      t.completedAt && isWithinInterval(new Date(t.completedAt), { start: monthStart, end: monthEnd })
+    ).length;
+
+    return { todayCompleted, weekCompleted, monthCompleted };
+  }, [archivedTasks]);
+
   return (
     <AppLayout>
       <div className="min-h-screen">
@@ -42,23 +68,32 @@ const SettingsPage = () => {
 
         {/* Stats summary */}
         <div className="p-4">
-          <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="grid grid-cols-3 gap-2 mb-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="p-4 rounded-xl bg-primary/10 border border-primary/20"
+              className="p-3 rounded-xl bg-success/10 border border-success/20 text-center"
             >
-              <p className="text-3xl font-bold text-primary">{tasks.length}</p>
-              <p className="text-sm text-muted-foreground">משימות פעילות</p>
+              <p className="text-2xl font-bold text-success">{stats.todayCompleted}</p>
+              <p className="text-xs text-muted-foreground">היום</p>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="p-4 rounded-xl bg-success/10 border border-success/20"
+              className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-center"
             >
-              <p className="text-3xl font-bold text-success">{archivedTasks.length}</p>
-              <p className="text-sm text-muted-foreground">משימות שהושלמו</p>
+              <p className="text-2xl font-bold text-primary">{stats.weekCompleted}</p>
+              <p className="text-xs text-muted-foreground">השבוע</p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="p-3 rounded-xl bg-accent/50 border border-border text-center"
+            >
+              <p className="text-2xl font-bold">{stats.monthCompleted}</p>
+              <p className="text-xs text-muted-foreground">החודש</p>
             </motion.div>
           </div>
 

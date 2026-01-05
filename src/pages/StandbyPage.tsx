@@ -316,7 +316,7 @@ const StandbyPage = () => {
           </div>
         </header>
 
-        <div className="p-4 pb-24 space-y-6">
+        <div className="p-4 pb-24">
           {templates.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -336,42 +336,51 @@ const StandbyPage = () => {
               </Button>
             </motion.div>
           ) : (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <section>
-                  <h2 className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-muted-foreground">
-                    <TrendingUp className="w-4 h-4" />
-                    הכי בשימוש
-                  </h2>
-                  <div className="space-y-2">
-                    {mostUsedTemplates.length > 0 ? (
-                      mostUsedTemplates.map(template => (
-                        <TemplateCard key={template.id} template={template} compact />
-                      ))
-                    ) : (
-                      <p className="text-xs text-muted-foreground py-4 text-center">אין נתונים</p>
-                    )}
-                  </div>
-                </section>
+            <div className="space-y-0">
+              {/* Top shelf - Statistics sections side by side */}
+              <div className="bg-muted/30 rounded-t-xl border-x border-t border-border">
+                <div className="grid grid-cols-2 divide-x divide-border">
+                  {/* Most Used Section */}
+                  <section className="p-3">
+                    <h2 className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-muted-foreground">
+                      <TrendingUp className="w-4 h-4" />
+                      הכי בשימוש
+                    </h2>
+                    <div className="space-y-2">
+                      {mostUsedTemplates.length > 0 ? (
+                        mostUsedTemplates.map(template => (
+                          <TemplateCard key={template.id} template={template} compact />
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground py-4 text-center">אין נתונים</p>
+                      )}
+                    </div>
+                  </section>
 
-                <section>
-                  <h2 className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-muted-foreground">
-                    <History className="w-4 h-4" />
-                    שימוש אחרון
-                  </h2>
-                  <div className="space-y-2">
-                    {recentTemplates.length > 0 ? (
-                      recentTemplates.map(template => (
-                        <TemplateCard key={template.id} template={template} compact />
-                      ))
-                    ) : (
-                      <p className="text-xs text-muted-foreground py-4 text-center">אין נתונים</p>
-                    )}
-                  </div>
-                </section>
+                  {/* Recent Section */}
+                  <section className="p-3">
+                    <h2 className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-muted-foreground">
+                      <History className="w-4 h-4" />
+                      שימוש אחרון
+                    </h2>
+                    <div className="space-y-2">
+                      {recentTemplates.length > 0 ? (
+                        recentTemplates.map(template => (
+                          <TemplateCard key={template.id} template={template} compact />
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground py-4 text-center">אין נתונים</p>
+                      )}
+                    </div>
+                  </section>
+                </div>
               </div>
 
-              <section>
+              {/* Shelf divider */}
+              <div className="h-2 bg-gradient-to-b from-border to-muted/50 border-x border-border" />
+
+              {/* Bottom shelf - Categories */}
+              <section className="bg-muted/20 rounded-b-xl border-x border-b border-border p-3">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-base font-semibold flex items-center gap-2">
                     <Folder className="w-5 h-5 text-primary" />
@@ -516,7 +525,7 @@ const StandbyPage = () => {
                   )}
                 </div>
               </section>
-            </>
+            </div>
           )}
         </div>
       </div>

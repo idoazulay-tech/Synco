@@ -46,29 +46,34 @@ const ArchivePage = () => {
               variant={filter === 'all' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilter('all')}
+              className="gap-1.5"
               data-testid="filter-all"
             >
-              הכל ({archivedTasks.length})
+              <Archive className="w-3 h-3" />
+              הכל
+              <span className="opacity-70">({archivedTasks.length})</span>
             </Button>
             <Button
               variant={filter === 'completed' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilter('completed')}
-              className="gap-1"
+              className="gap-1.5"
               data-testid="filter-completed"
             >
               <CheckCircle className="w-3 h-3" />
-              {completedCount}
+              הושלמו
+              <span className="opacity-70">({completedCount})</span>
             </Button>
             <Button
               variant={filter === 'not_completed' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilter('not_completed')}
-              className="gap-1"
+              className="gap-1.5"
               data-testid="filter-not-completed"
             >
               <XCircle className="w-3 h-3" />
-              {notCompletedCount}
+              לא הושלמו
+              <span className="opacity-70">({notCompletedCount})</span>
             </Button>
           </div>
         </header>
