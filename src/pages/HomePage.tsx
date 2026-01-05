@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Inbox, ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, addHours, startOfDay, isSameHour, differenceInMinutes } from 'date-fns';
+import { Calendar, Inbox, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { format, addHours, startOfDay, differenceInMinutes, differenceInHours, differenceInDays, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CircularProgress } from '@/components/timer/CircularProgress';
@@ -15,6 +15,89 @@ import { Task } from '@/types/task';
 import { cn } from '@/lib/utils';
 
 const MINI_HOUR_HEIGHT = 40;
+
+const formatTimeUntil = (targetTime: Date): string => {
+  const now = new Date();
+  const diffMinutes = differenceInMinutes(targetTime, now);
+  const diffHours = differenceInHours(targetTime, now);
+  const diffDays = differenceInDays(targetTime, now);
+
+  if (diffMinutes < 1) {
+    return 'עכשיו';
+  } else if (diffMinutes < 60) {
+    return `${diffMinutes} דקות`;
+  } else if (diffHours < 24) {
+    const hours = diffHours;
+    const remainingMinutes = diffMinutes % 60;
+    if (remainingMinutes > 0) {
+      return `${hours} שעות ו-${remainingMinutes} דקות`;
+    }
+    return `${hours} שעות`;
+  } else {
+    const days = diffDays;
+    const remainingHours = diffHours % 24;
+    if (remainingHours > 0) {
+      return `${days} ימים ו-${remainingHours} שעות`;
+    }
+    return `${days} ימים`;
+  }
+};
+
+const formatDuration = (startTime: Date, endTime: Date): string => {
+  const diffMinutes = differenceInMinutes(endTime, startTime);
+  if (diffMinutes < 60) {
+    return `${diffMinutes} דק'`;
+  }
+  const hours = Math.floor(diffMinutes / 60);
+  const mins = diffMinutes % 60;
+  if (mins > 0) {
+    return `${hours}:${mins.toString().padStart(2, '0')} שעות`;
+  }
+  return `${hours} שעות`;
+};
+
+const NextTaskBanner = ({ task, onClick }: { task: Task; onClick: () => void }) => {
+  const [timeUntil, setTimeUntil] = useState(formatTimeUntil(task.startTime));
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeUntil(formatTimeUntil(task.startTime));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [task.startTime]);
+
+  const duration = formatDuration(task.startTime, task.endTime);
+  const taskTime = format(task.startTime, 'HH:mm');
+
+  return (
+    <motion.div
+      initial={{ y: 20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      className="fixed bottom-20 left-4 right-4 z-20"
+    >
+      <div 
+        onClick={onClick}
+        className="bg-secondary/95 backdrop-blur-sm rounded-xl p-4 shadow-lg cursor-pointer hover-elevate"
+        data-testid="next-task-banner"
+      >
+        <p className="text-sm text-muted-foreground mb-2">
+          המשימה הבאה: <span className="font-medium text-foreground">"{task.title}"</span>
+        </p>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Clock className="w-3 h-3" />
+            <span>{taskTime}</span>
+            <span className="text-muted-foreground/50">|</span>
+            <span>{duration}</span>
+          </div>
+          <p className="text-sm font-medium text-primary">
+            בעוד {timeUntil}
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
 
 const CompactSchedule = ({ 
   tasks, 
@@ -57,11 +140,6 @@ const CompactSchedule = ({
               <div className="relative">
                 {visibleHours.map((hour) => {
                   const isCurrentHour = hour === currentHour;
-                  const tasksInHour = tasks.filter(task => {
-                    const taskStartHour = task.startTime.getHours();
-                    const taskEndHour = task.endTime.getHours();
-                    return hour >= taskStartHour && hour < taskEndHour;
-                  });
 
                   return (
                     <div 
@@ -140,9 +218,26 @@ const HomePage = () => {
   const { getCurrentTask, getTasksForDay, completeTask } = useTaskStore();
   const currentTask = getCurrentTask();
   const todayTasks = getTasksForDay(new Date());
-  const upcomingTasks = todayTasks.filter(t => t.id !== currentTask?.id && t.status === 'pending');
 
   const [showSchedule, setShowSchedule] = useState(false);
+
+  const nextTask = useMemo(() => {
+    const now = new Date();
+    const futureDays = 30;
+    
+    let allUpcomingTasks: Task[] = [];
+    for (let i = 0; i < futureDays; i++) {
+      const date = addDays(now, i);
+      const dayTasks = getTasksForDay(date);
+      allUpcomingTasks = [...allUpcomingTasks, ...dayTasks];
+    }
+    
+    const futureTasksFiltered = allUpcomingTasks
+      .filter(t => t.id !== currentTask?.id && t.status === 'pending' && t.startTime > now)
+      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+    
+    return futureTasksFiltered[0] || null;
+  }, [getTasksForDay, currentTask]);
 
   const {
     percentage,
@@ -175,7 +270,7 @@ const HomePage = () => {
   if (!currentTask) {
     return (
       <AppLayout>
-        <div className="min-h-screen flex flex-col items-center justify-center p-6 relative">
+        <div className="min-h-screen flex flex-col items-center justify-center p-6 pb-32 relative">
           <button
             onClick={() => setShowSchedule(true)}
             className="fixed right-0 top-1/2 -translate-y-1/2 bg-secondary/80 hover:bg-secondary p-1 rounded-l-lg shadow-md z-30 transition-colors"
@@ -194,25 +289,14 @@ const HomePage = () => {
             </div>
             <h1 className="text-2xl font-bold text-foreground mb-2">אין משימה פעילה</h1>
             <p className="text-muted-foreground mb-8">הזמן שלך פנוי כרגע</p>
-            
-            {upcomingTasks.length > 0 && (
-              <div className="w-full max-w-sm">
-                <h3 className="text-sm font-medium text-muted-foreground mb-3 text-right">
-                  משימות קרובות
-                </h3>
-                <div className="space-y-3">
-                  {upcomingTasks.slice(0, 3).map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      variant="compact"
-                      onClick={() => navigate(`/task/${task.id}`)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
           </motion.div>
+
+          {nextTask && (
+            <NextTaskBanner 
+              task={nextTask} 
+              onClick={() => navigate(`/task/${nextTask.id}`)} 
+            />
+          )}
 
           <CompactSchedule 
             tasks={todayTasks} 
@@ -227,7 +311,7 @@ const HomePage = () => {
 
   return (
     <AppLayout>
-      <div className="min-h-screen flex flex-col relative">
+      <div className="min-h-screen flex flex-col relative pb-32">
         <button
           onClick={() => setShowSchedule(true)}
           className="fixed right-0 top-1/2 -translate-y-1/2 bg-secondary/80 hover:bg-secondary p-1 rounded-l-lg shadow-md z-30 transition-colors"
@@ -251,7 +335,7 @@ const HomePage = () => {
           <div className="w-10" />
         </header>
 
-        <div className="flex-1 flex flex-col items-center justify-center px-6 pb-8">
+        <div className="flex-1 flex flex-col items-center justify-center px-6">
           <motion.div
             initial={{ y: 30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -281,25 +365,14 @@ const HomePage = () => {
               onNavigate={() => navigate('/day')}
             />
           </motion.div>
-
-          {upcomingTasks.length > 0 && (
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.4 }}
-              className="mt-6 w-full max-w-sm"
-            >
-              <p className="text-sm text-muted-foreground mb-2">הבא:</p>
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50">
-                <div className="w-2 h-2 rounded-full bg-primary" />
-                <span className="text-sm font-medium truncate">{upcomingTasks[0].title}</span>
-                <span className="text-xs text-muted-foreground mr-auto">
-                  {format(upcomingTasks[0].startTime, 'HH:mm')}
-                </span>
-              </div>
-            </motion.div>
-          )}
         </div>
+
+        {nextTask && (
+          <NextTaskBanner 
+            task={nextTask} 
+            onClick={() => navigate(`/task/${nextTask.id}`)} 
+          />
+        )}
 
         <CompletionDialog
           isOpen={shouldShowDialog10 || shouldShowDialog5}
