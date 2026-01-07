@@ -48,6 +48,23 @@ Tasks have a lifecycle: pending → in_progress → completed/not_completed → 
 - Categories organize templates with color-coded labels
 - Date fields are properly rehydrated from localStorage via onRehydrateStorage callback
 
+### HaMekolel Smart Parser (המכולל)
+- Natural language Hebrew text parser that converts freeform text into scheduled tasks
+- Automatically detects dates and times from Hebrew expressions
+- Supported expressions:
+  - מחר (tomorrow), מחרתיים (day after tomorrow), היום (today)
+  - יום X הקרוב/הבא (next day X, e.g., "יום רביעי הקרוב")
+  - יום X בשבוע הבא (day X next week)
+  - תאריך X (specific date, e.g., "תאריך 15/01")
+  - Time expressions: בשעה X, ב-X, numeric times
+  - בזמן הפנוי הבא (next free time slot)
+  - בזמן הפנוי ביום הבא (next free time tomorrow)
+  - אחרי המשימה האחרונה היום (after last task today)
+  - באותה שעה בעוד X ימים/שבועות/חודשים (same time in X days/weeks/months)
+- Component: `src/components/task/HaMekolel.tsx`
+- Parser utility: `src/lib/hebrewDateParser.ts`
+- Uses `ensureDate()` helper to handle persisted tasks stored as strings in localStorage
+
 ### Mental Focus Feature (מיקוד מנטלי)
 - Displays motivational action phrases during active tasks based on completion percentage
 - Five percentage zones with different phrase pools:
