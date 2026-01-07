@@ -420,7 +420,21 @@ const DayViewPage = () => {
     <AppLayout>
       <div className="min-h-screen flex flex-col">
         <header className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border">
-          <div className="flex items-center justify-between p-3">
+          <div className="flex items-center justify-center gap-2 pt-2 pb-1">
+            {[1, 3].map(days => (
+              <Button
+                key={days}
+                size="sm"
+                variant={viewDays === days ? 'default' : 'outline'}
+                onClick={() => setViewDays(days)}
+                data-testid={`button-view-${days}-days`}
+              >
+                {days === 1 ? 'יום' : `${days} ימים`}
+              </Button>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between px-3 pb-2">
             <button 
               onClick={goToPreviousDay}
               className="p-2 rounded-full hover:bg-secondary transition-colors"
@@ -457,20 +471,6 @@ const DayViewPage = () => {
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-          </div>
-
-          <div className="flex items-center justify-center gap-2 pb-2">
-            {[1, 3].map(days => (
-              <Button
-                key={days}
-                size="sm"
-                variant={viewDays === days ? 'default' : 'outline'}
-                onClick={() => setViewDays(days)}
-                data-testid={`button-view-${days}-days`}
-              >
-                {days === 1 ? 'יום' : `${days} ימים`}
-              </Button>
-            ))}
           </div>
         </header>
 
