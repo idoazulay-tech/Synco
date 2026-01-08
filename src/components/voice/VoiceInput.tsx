@@ -37,6 +37,52 @@ export const VoiceInput = ({ existingTasks, onTaskCreate, onConflictDetected }: 
   const [selectedTimeIndex, setSelectedTimeIndex] = useState(0);
   
   const recognitionRef = useRef<any>(null);
+  const stateRef = useRef<RecognitionState>('idle');
+  const transcriptRef = useRef('');
+
+  stateRef.current = state;
+  transcriptRef.current = transcript;
+
+  const findConflictsFromParsed = useCallback((parsed: ParsedDateTime, tasks: Task[], timeOptionIndex: number): Task[] => {
+    if (!parsed.date || parsed.hour === undefined) return [];
+
+    const hour = parsed.isAmbiguousTime && parsed.timeOptions 
+      ? parsed.timeOptions[timeOptionIndex].hour 
+      : parsed.hour;
+    const minute = parsed.minute || 0;
+
+    const taskStart = new Date(parsed.date);
+    taskStart.setHours(hour, minute, 0, 0);
+    const taskEnd = new Date(taskStart.getTime() + 60 * 60 * 1000);
+
+    return tasks.filter(task => {
+      const existingStart = new Date(task.startTime);
+      const existingEnd = new Date(task.endTime);
+      return (taskStart < existingEnd && taskEnd > existingStart);
+    });
+  }, []);
+
+  const processVoiceResult = useCallback(() => {
+    const currentTranscript = transcriptRef.current;
+    if (!currentTranscript.trim()) {
+      setState('error');
+      setErrorMessage('לא זוהה טקסט. נסה שוב.');
+      return;
+    }
+
+    const result = parseHebrewDateTime(currentTranscript, existingTasks);
+    setParsed(result);
+
+    if (hasDateTimeInfo(result) && result.date && result.hour !== undefined) {
+      const taskConflicts = findConflictsFromParsed(result, existingTasks, 0);
+      setConflicts(taskConflicts);
+      if (taskConflicts.length > 0 && onConflictDetected) {
+        onConflictDetected(taskConflicts);
+      }
+    }
+
+    setState('result');
+  }, [existingTasks, onConflictDetected, findConflictsFromParsed]);
 
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -70,13 +116,17 @@ export const VoiceInput = ({ existingTasks, onTaskCreate, onConflictDetected }: 
         }
       }
 
-      setTranscript(finalTranscript || interimTranscript);
+      const newTranscript = finalTranscript || interimTranscript;
+      setTranscript(newTranscript);
+      transcriptRef.current = newTranscript;
     };
 
     recognition.onend = () => {
-      if (state === 'listening') {
+      if (stateRef.current === 'listening') {
         setState('processing');
-        processTranscript();
+        setTimeout(() => {
+          processVoiceResult();
+        }, 100);
       }
     };
 
@@ -102,47 +152,7 @@ export const VoiceInput = ({ existingTasks, onTaskCreate, onConflictDetected }: 
     return () => {
       recognition.abort();
     };
-  }, []);
-
-  const processTranscript = useCallback(() => {
-    if (!transcript.trim()) {
-      setState('error');
-      setErrorMessage('לא זוהה טקסט. נסה שוב.');
-      return;
-    }
-
-    const result = parseHebrewDateTime(transcript, existingTasks);
-    setParsed(result);
-
-    if (hasDateTimeInfo(result) && result.date && result.hour !== undefined) {
-      const taskConflicts = findConflicts(result, existingTasks);
-      setConflicts(taskConflicts);
-      if (taskConflicts.length > 0 && onConflictDetected) {
-        onConflictDetected(taskConflicts);
-      }
-    }
-
-    setState('result');
-  }, [transcript, existingTasks, onConflictDetected]);
-
-  const findConflicts = (parsed: ParsedDateTime, tasks: Task[]): Task[] => {
-    if (!parsed.date || parsed.hour === undefined) return [];
-
-    const hour = parsed.isAmbiguousTime && parsed.timeOptions 
-      ? parsed.timeOptions[selectedTimeIndex].hour 
-      : parsed.hour;
-    const minute = parsed.minute || 0;
-
-    const taskStart = new Date(parsed.date);
-    taskStart.setHours(hour, minute, 0, 0);
-    const taskEnd = new Date(taskStart.getTime() + 60 * 60 * 1000);
-
-    return tasks.filter(task => {
-      const existingStart = new Date(task.startTime);
-      const existingEnd = new Date(task.endTime);
-      return (taskStart < existingEnd && taskEnd > existingStart);
-    });
-  };
+  }, [processVoiceResult]);
 
   const startListening = () => {
     if (recognitionRef.current) {

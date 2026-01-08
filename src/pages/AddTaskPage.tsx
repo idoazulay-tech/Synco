@@ -379,7 +379,7 @@ const AddTaskPage = () => {
             />
           </motion.div>
 
-          {mode === 'calendar' && conflicts.length > 0 && (
+          {conflicts.length > 0 && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
