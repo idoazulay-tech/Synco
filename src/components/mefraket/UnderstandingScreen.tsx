@@ -90,15 +90,23 @@ export function UnderstandingScreen({ result, originalText, onReset, onClose }: 
     const parsed = parseHebrewDateTime(originalText);
     
     const now = new Date();
-    let taskDate = parsed.date || startOfDay(now);
     
     let startTime: Date;
-    if (parsed.hour !== undefined) {
-      startTime = setMinutes(setHours(taskDate, parsed.hour), parsed.minute || 0);
+    let taskStatus: 'pending' | 'in_progress' = 'pending';
+    
+    if (parsed.date || parsed.hour !== undefined) {
+      let taskDate = parsed.date || startOfDay(now);
+      if (parsed.hour !== undefined) {
+        startTime = setMinutes(setHours(taskDate, parsed.hour), parsed.minute || 0);
+      } else {
+        startTime = setMinutes(setHours(taskDate, now.getHours() + 1), 0);
+      }
+      if (startTime <= now) {
+        taskStatus = 'in_progress';
+      }
     } else {
-      const currentHour = now.getHours();
-      const nextHour = currentHour + 1;
-      startTime = setMinutes(setHours(taskDate, nextHour), 0);
+      startTime = now;
+      taskStatus = 'in_progress';
     }
     
     const endTime = addMinutes(startTime, 30);
@@ -108,7 +116,7 @@ export function UnderstandingScreen({ result, originalText, onReset, onClose }: 
       startTime,
       endTime,
       duration: 30,
-      status: 'pending',
+      status: taskStatus,
       tags: [],
     });
     
