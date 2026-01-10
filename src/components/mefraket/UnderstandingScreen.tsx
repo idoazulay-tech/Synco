@@ -10,13 +10,17 @@ import {
   Brain,
   FileText,
   Calendar,
-  Clock
+  Clock,
+  Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { InsightsDrawer } from './InsightsDrawer';
+import { useTaskStore } from '@/store/taskStore';
+import { parseHebrewDateTime } from '@/lib/hebrewDateParser';
+import { addMinutes, setHours, setMinutes, startOfDay } from 'date-fns';
 
 interface InterpretResult {
   intent: string;
@@ -41,6 +45,7 @@ interface InterpretResult {
 
 interface UnderstandingScreenProps {
   result: InterpretResult;
+  originalText: string;
   onReset: () => void;
   onClose: () => void;
 }
@@ -68,13 +73,48 @@ const urgencyLabels: Record<string, string> = {
   LOW: 'נמוכה',
 };
 
-export function UnderstandingScreen({ result, onReset, onClose }: UnderstandingScreenProps) {
+export function UnderstandingScreen({ result, originalText, onReset, onClose }: UnderstandingScreenProps) {
   const [showInsights, setShowInsights] = useState(false);
+  const [taskCreated, setTaskCreated] = useState(false);
+  const [createdTaskTime, setCreatedTaskTime] = useState<string | null>(null);
+  const addTask = useTaskStore((state) => state.addTask);
   
   const intentInfo = intentLabels[result.intent] || intentLabels.UNKNOWN;
   const IntentIcon = intentInfo.icon;
   
-  const wasTaskCreated = result.action?.type === 'TASK_CREATED';
+  const wasTaskCreated = result.action?.type === 'TASK_CREATED' || taskCreated;
+  const canCreateTask = (result.intent === 'CREATE_TASK' || result.intent === 'SCHEDULE_TASK') && !wasTaskCreated;
+
+  const handleConfirmTask = () => {
+    const title = result.extracted.title || originalText;
+    const parsed = parseHebrewDateTime(originalText);
+    
+    const now = new Date();
+    let taskDate = parsed.date || startOfDay(now);
+    
+    let startTime: Date;
+    if (parsed.hour !== undefined) {
+      startTime = setMinutes(setHours(taskDate, parsed.hour), parsed.minute || 0);
+    } else {
+      const currentHour = now.getHours();
+      const nextHour = currentHour + 1;
+      startTime = setMinutes(setHours(taskDate, nextHour), 0);
+    }
+    
+    const endTime = addMinutes(startTime, 30);
+    
+    addTask({
+      title,
+      startTime,
+      endTime,
+      duration: 30,
+      status: 'pending',
+      tags: [],
+    });
+    
+    setTaskCreated(true);
+    setCreatedTaskTime(startTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }));
+  };
 
   return (
     <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
@@ -128,8 +168,20 @@ export function UnderstandingScreen({ result, onReset, onClose }: UnderstandingS
               <CheckCircle className="h-5 w-5 text-green-500" />
               <span className="text-green-700 dark:text-green-400 font-medium">
                 משימה נוצרה בהצלחה!
+                {createdTaskTime && ` (${createdTaskTime})`}
               </span>
             </motion.div>
+          )}
+
+          {canCreateTask && (
+            <Button
+              onClick={handleConfirmTask}
+              className="w-full bg-green-600 hover:bg-green-700"
+              data-testid="button-confirm-task"
+            >
+              <Plus className="h-4 w-4 ml-2" />
+              אישור והוספה ללוח זמנים
+            </Button>
           )}
 
           {result.needsApproval && !wasTaskCreated && (

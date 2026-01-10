@@ -36,6 +36,7 @@ interface InterpretResult {
 
 export function QuickInputPanel({ mode, onClose, onModeChange }: QuickInputPanelProps) {
   const [text, setText] = useState('');
+  const [originalText, setOriginalText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [result, setResult] = useState<InterpretResult | null>(null);
@@ -124,6 +125,7 @@ export function QuickInputPanel({ mode, onClose, onModeChange }: QuickInputPanel
     
     setIsProcessing(true);
     setError(null);
+    setOriginalText(text.trim());
     
     try {
       const response = await fetch('/api/quick', {
@@ -148,6 +150,7 @@ export function QuickInputPanel({ mode, onClose, onModeChange }: QuickInputPanel
 
   const handleReset = () => {
     setText('');
+    setOriginalText('');
     setResult(null);
     setError(null);
   };
@@ -156,6 +159,7 @@ export function QuickInputPanel({ mode, onClose, onModeChange }: QuickInputPanel
     return (
       <UnderstandingScreen
         result={result}
+        originalText={originalText}
         onReset={handleReset}
         onClose={onClose}
       />
