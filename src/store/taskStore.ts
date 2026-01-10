@@ -181,17 +181,20 @@ export const useTaskStore = create<TaskState>()(
         const tasks = get().tasks;
         
         // Find all tasks that are currently active (now is within their time range)
-        const activeTasks = tasks.filter((task) =>
-          task.status !== 'completed' &&
-          task.status !== 'not_completed' &&
-          isWithinInterval(now, { start: task.startTime, end: task.endTime })
-        );
+        const activeTasks = tasks.filter((task) => {
+          if (task.status === 'completed' || task.status === 'not_completed') {
+            return false;
+          }
+          const startTime = new Date(task.startTime);
+          const endTime = new Date(task.endTime);
+          return isWithinInterval(now, { start: startTime, end: endTime });
+        });
         
         // Return the first one by start time (earliest started task gets priority)
         if (activeTasks.length === 0) return null;
         
         return activeTasks.sort((a, b) => 
-          a.startTime.getTime() - b.startTime.getTime()
+          new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
         )[0];
       },
 
@@ -199,9 +202,10 @@ export const useTaskStore = create<TaskState>()(
         const dayStart = startOfDay(date);
         const dayEnd = endOfDay(date);
         
-        return get().tasks.filter((task) =>
-          isWithinInterval(task.startTime, { start: dayStart, end: dayEnd })
-        ).sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+        return get().tasks.filter((task) => {
+          const startTime = new Date(task.startTime);
+          return isWithinInterval(startTime, { start: dayStart, end: dayEnd });
+        }).sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
       },
 
       getTaskById: (id: string) => {
