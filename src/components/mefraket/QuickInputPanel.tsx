@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Keyboard, Mic, Send, Loader2, MicOff } from 'lucide-react';
+import { Keyboard, Mic, Send, Loader2, MicOff, Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { UnderstandingScreen } from './UnderstandingScreen';
+import { RegulationModal } from './RegulationModal';
 
 interface QuickInputPanelProps {
   mode: 'text' | 'voice';
@@ -39,6 +40,7 @@ export function QuickInputPanel({ mode, onClose, onModeChange }: QuickInputPanel
   const [isListening, setIsListening] = useState(false);
   const [result, setResult] = useState<InterpretResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showRegulation, setShowRegulation] = useState(false);
   
   const recognitionRef = useRef<any>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -294,6 +296,23 @@ export function QuickInputPanel({ mode, onClose, onModeChange }: QuickInputPanel
           {error}
         </motion.p>
       )}
+
+      <div className="pt-4 border-t">
+        <Button
+          variant="outline"
+          onClick={() => setShowRegulation(true)}
+          className="w-full gap-2 text-muted-foreground"
+          data-testid="button-regulation"
+        >
+          <Heart className="h-4 w-4" />
+          צריך ויסות?
+        </Button>
+      </div>
+
+      <RegulationModal 
+        isOpen={showRegulation} 
+        onClose={() => setShowRegulation(false)} 
+      />
     </div>
   );
 }
