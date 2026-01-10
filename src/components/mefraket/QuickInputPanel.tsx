@@ -75,16 +75,25 @@ export function QuickInputPanel({ mode, onClose, onModeChange }: QuickInputPanel
     recognition.continuous = false;
     recognition.interimResults = true;
 
+    let finalTranscript = '';
+
     recognition.onstart = () => {
       setIsListening(true);
       setError(null);
+      finalTranscript = '';
     };
 
     recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results)
-        .map((result: any) => result[0].transcript)
-        .join('');
-      setText(transcript);
+      let interim = '';
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalTranscript += result[0].transcript;
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+      setText(finalTranscript || interim);
     };
 
     recognition.onerror = (event: any) => {
@@ -97,14 +106,11 @@ export function QuickInputPanel({ mode, onClose, onModeChange }: QuickInputPanel
 
     recognition.onend = () => {
       setIsListening(false);
-      if (text.trim()) {
-        handleSubmit();
-      }
     };
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [text]);
+  }, []);
 
   const stopListening = () => {
     if (recognitionRef.current) {
@@ -144,9 +150,6 @@ export function QuickInputPanel({ mode, onClose, onModeChange }: QuickInputPanel
     setText('');
     setResult(null);
     setError(null);
-    if (mode === 'voice') {
-      startListening();
-    }
   };
 
   if (result) {
@@ -229,26 +232,58 @@ export function QuickInputPanel({ mode, onClose, onModeChange }: QuickInputPanel
               </div>
             )}
             
-            {!isListening && (
-              <Button
-                onClick={startListening}
-                className="bg-orange-500 hover:bg-orange-600"
-                data-testid="button-start-listening"
-              >
-                <Mic className="h-4 w-4 ml-2" />
-                התחל הקלטה
-              </Button>
-            )}
-            
-            {isListening && (
-              <Button
-                variant="outline"
-                onClick={stopListening}
-                data-testid="button-stop-listening"
-              >
-                סיים הקלטה
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {!isListening && !text && (
+                <Button
+                  onClick={startListening}
+                  className="bg-orange-500 hover:bg-orange-600"
+                  data-testid="button-start-listening"
+                >
+                  <Mic className="h-4 w-4 ml-2" />
+                  התחל הקלטה
+                </Button>
+              )}
+              
+              {isListening && (
+                <Button
+                  variant="outline"
+                  onClick={stopListening}
+                  data-testid="button-stop-listening"
+                >
+                  סיים הקלטה
+                </Button>
+              )}
+              
+              {!isListening && text && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setText('');
+                      startListening();
+                    }}
+                    data-testid="button-retry-voice"
+                  >
+                    נסה שוב
+                  </Button>
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={isProcessing}
+                    className="bg-orange-500 hover:bg-orange-600"
+                    data-testid="button-send-voice"
+                  >
+                    {isProcessing ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 ml-2" />
+                        שלח
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+            </div>
           </motion.div>
         ) : (
           <motion.div

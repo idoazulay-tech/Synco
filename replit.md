@@ -104,11 +104,52 @@ Tasks have a lifecycle: pending → in_progress → completed/not_completed → 
 - Component: `src/components/focus/FocusMessageOverlay.tsx`
 - Messages data: `src/lib/focusMessages.ts`
 
+### HaMefraket (המפרקט) - Smart ADHD Assistant
+- Intelligent "brain and hand" wrapper that simplifies task management for ADHD users
+- Accessible via split floating button above bottom navigation:
+  - Blue button (keyboard icon): Opens text input mode
+  - Orange button (microphone icon): Opens voice input mode
+- Components:
+  - `src/components/mefraket/MefraketButton.tsx` - Split floating action button
+  - `src/components/mefraket/QuickInputPanel.tsx` - Text/voice input panel
+  - `src/components/mefraket/UnderstandingScreen.tsx` - Shows detected intent and actions
+  - `src/components/mefraket/InsightsDrawer.tsx` - Detailed insights and detected data
+  - `src/components/mefraket/RegulationModal.tsx` - Self-regulation exercises
+
+### Backend Architecture (NEW)
+- **Server**: Express.js running on port 3001 with TypeScript
+- **Database**: PostgreSQL via Prisma 7 with PrismaPg adapter
+- **Concurrency**: Frontend (Vite on 5000) and backend run together via `concurrently`
+- **Proxy**: Vite proxies `/api/*` requests to backend on port 3001
+
+### Rule Engine (server/services/ruleEngine.ts)
+- Hebrew natural language intent detection
+- Detects intents: CREATE_TASK, FREE_TEXT, SCHEDULE_TASK, COMPLETE_TASK, DEFER_TASK
+- Urgency detection: CRITICAL, HIGH, MEDIUM, LOW based on Hebrew keywords
+- Extracts task titles, due dates, and other parameters
+- Returns insights and action recommendations
+
+### Database Models (prisma/schema.prisma)
+- TaskFile: Persistent task templates with title, description, tags, urgency
+- TaskRun: Active task instances with status tracking
+- RunStep: Individual steps within a task run
+- InsightLog: Logs of parsed user inputs and detected patterns
+- UserSettings: User preferences (JSON)
+- RegulationLog: Self-regulation exercise completions
+
+### Regulation Exercises (ויסות)
+- Breathing exercises (4-7-8, box breathing)
+- Grounding techniques (5-4-3-2-1)
+- Quick physical exercises (stretching)
+- Exercises available via `/api/regulation/exercises/:type/random`
+- Completion logged to database
+
 ### Design Decisions
-1. **Client-Side Only**: Currently no backend - all data persists in localStorage via Zustand
+1. **Full-Stack Architecture**: Express backend with PostgreSQL for persistence
 2. **RTL Support**: Hebrew language with right-to-left text direction considerations
 3. **Mobile-First**: Bottom navigation pattern, touch-friendly UI elements
 4. **Timer-Centric**: Core feature is the task timer with percentage and remaining time display
+5. **ADHD-Focused**: HaMefraket simplifies interaction with voice/text quick input
 
 ## External Dependencies
 
