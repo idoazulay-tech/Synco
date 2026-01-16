@@ -122,12 +122,18 @@ Tasks have a lifecycle: pending → in_progress → completed/not_completed → 
 - **Concurrency**: Frontend (Vite on 5000) and backend run together via `concurrently`
 - **Proxy**: Vite proxies `/api/*` requests to backend on port 3001
 
-### Rule Engine (server/services/ruleEngine.ts)
-- Hebrew natural language intent detection
-- Detects intents: CREATE_TASK, FREE_TEXT, SCHEDULE_TASK, COMPLETE_TASK, DEFER_TASK
-- Urgency detection: CRITICAL, HIGH, MEDIUM, LOW based on Hebrew keywords
-- Extracts task titles, due dates, and other parameters
-- Returns insights and action recommendations
+### Rule Engine / Voice-to-Task Engine (server/services/ruleEngine.ts)
+- Dual-mode detection: `task_or_event` vs `journal_entry`
+- Mode determination uses: action verbs, time/date signals, reminder triggers, commitment words
+- Task mode extracts: title, dates, times, location, participants, type, priority, flexibility
+- Journal mode extracts: mood (8 types), intensity (1-5), tags, action suggestions
+- Supported phrase categories:
+  - TIME_SIGNALS: בשעה, בבוקר, בצהריים, בערב, etc.
+  - DATE_SIGNALS: היום, מחר, מחרתיים, השבוע, חודש הבא, etc.
+  - ACTION_VERBS: לקנות, להתקשר, לשלוח, לסיים, etc. (20+ verbs)
+  - Emotional phrases: stuck, mental load, procrastination, obligation, chaos, money, people conflict
+- suggested_tasks_from_journal: Extracts up to 3 actionable tasks from journal entries
+- Learning log structure for iterative improvement
 
 ### Database Models (prisma/schema.prisma)
 - TaskFile: Persistent task templates with title, description, tags, urgency
