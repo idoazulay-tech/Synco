@@ -31,6 +31,11 @@ interface InterpretResult {
     title?: string;
     dueAt?: string;
     urgency?: string;
+    taskType?: string;
+    location?: string;
+    participants?: string[];
+    allDay?: boolean;
+    confidence?: string;
   };
   autoAction: boolean;
   needsApproval: boolean;
@@ -148,6 +153,7 @@ export function UnderstandingScreen({ result, originalText, onReset, onClose }: 
       duration,
       status: taskStatus,
       tags: [],
+      location: result.extracted.location,
     });
     
     setTaskCreated(true);
@@ -197,6 +203,27 @@ export function UnderstandingScreen({ result, originalText, onReset, onClose }: 
               <Badge variant="outline" className="gap-1">
                 <Calendar className="h-3 w-3" />
                 {new Date(result.extracted.dueAt).toLocaleDateString('he-IL')}
+              </Badge>
+            )}
+
+            {result.extracted.taskType && result.extracted.taskType !== 'task' && (
+              <Badge variant="outline" className="gap-1">
+                {result.extracted.taskType === 'meeting' && 'פגישה'}
+                {result.extracted.taskType === 'appointment' && 'תור'}
+                {result.extracted.taskType === 'errand' && 'סידור'}
+                {result.extracted.taskType === 'reminder' && 'תזכורת'}
+              </Badge>
+            )}
+
+            {result.extracted.location && (
+              <Badge variant="outline" className="gap-1 bg-blue-50 dark:bg-blue-900/20">
+                📍 {result.extracted.location}
+              </Badge>
+            )}
+
+            {result.extracted.participants && result.extracted.participants.length > 0 && (
+              <Badge variant="outline" className="gap-1 bg-purple-50 dark:bg-purple-900/20">
+                👥 {result.extracted.participants.join(', ')}
               </Badge>
             )}
           </div>

@@ -9,12 +9,27 @@ export type Intent =
 
 export type Urgency = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
+export type TaskType = 'meeting' | 'appointment' | 'errand' | 'task' | 'reminder';
+
 export interface ExtractedData {
   title?: string;
   dueAt?: Date;
   urgency?: Urgency;
   entities?: string[];
   duration?: number;
+  taskType?: TaskType;
+  location?: string;
+  participants?: string[];
+  allDay?: boolean;
+  confidence?: 'high' | 'medium' | 'low';
+}
+
+export interface LearningLog {
+  new_time_phrases: string[];
+  new_date_phrases: string[];
+  new_location_phrases: string[];
+  new_task_phrases: string[];
+  unclassified_phrases: string[];
 }
 
 export interface InterpretResult {
@@ -22,11 +37,14 @@ export interface InterpretResult {
   extracted: ExtractedData;
   autoAction: boolean;
   needsApproval: boolean;
+  needs_clarification: boolean;
+  clarifying_question: string | null;
   questions?: string[];
   insights: {
     summary: string;
     detected: Record<string, unknown>;
   };
+  learning_log: LearningLog;
 }
 
 interface UserContext {
@@ -89,6 +107,28 @@ const SCHEDULE_PATTERNS = [
   /מחרתיים/,
 ];
 
+const TYPE_HINTS: Record<TaskType, RegExp[]> = {
+  meeting: [/פגישה/, /ישיבה/, /שיחה/, /זום/, /וידאו/, /ראיון/, /ועידה/],
+  appointment: [/תור/, /רופא/, /בדיקה/, /מרפאה/, /קליניקה/, /טיפול/, /בנק/, /עירייה/],
+  errand: [/לקנות/, /לאסוף/, /להביא/, /להחזיר/, /למסור/, /דואר/, /סופר/, /קניות/, /סידור/, /מוסך/],
+  task: [/לעשות/, /לסיים/, /להתחיל/, /לטפל/, /להכין/, /לשלוח/, /להתקשר/, /לסדר/, /לארגן/],
+  reminder: [/תזכיר לי/, /לא לשכוח/, /תזכורת/, /אל תשכח/]
+};
+
+const LOCATION_PATTERNS = [
+  /ב(כתובת|מיקום|משרד|סניף|חנות|קניון|פארק|רחוב|שדרות)\s+([^,\.]+)/,
+  /אצל\s+(ה)?([^,\.]+)/,
+  /(ליד|מול|על יד)\s+([^,\.]+)/,
+];
+
+const PARTICIPANT_PATTERNS = [
+  /עם\s+([א-ת]+(?:\s+[א-ת]+)?)/,
+  /פגישה\s+עם\s+([א-ת]+(?:\s+[א-ת]+)?)/,
+  /שיחה\s+עם\s+([א-ת]+(?:\s+[א-ת]+)?)/,
+];
+
+const FILLER_WORDS = ['אממ', 'אה', 'כאילו', 'טוב', 'רגע', 'רק', 'פשוט', 'בעצם', 'כזה', 'זה'];
+
 const hebrewDays: Record<string, number> = {
   'ראשון': 0, 'שני': 1, 'שלישי': 2, 'רביעי': 3,
   'חמישי': 4, 'שישי': 5, 'שבת': 6
@@ -145,7 +185,53 @@ function extractUrgency(text: string): Urgency {
   return 'MEDIUM';
 }
 
-function extractTitle(text: string): string {
+function extractTaskType(text: string): TaskType {
+  for (const [type, patterns] of Object.entries(TYPE_HINTS)) {
+    for (const pattern of patterns) {
+      if (pattern.test(text)) {
+        return type as TaskType;
+      }
+    }
+  }
+  return 'task';
+}
+
+function extractLocation(text: string): string | undefined {
+  for (const pattern of LOCATION_PATTERNS) {
+    const match = pattern.exec(text);
+    if (match) {
+      const location = match[match.length - 1]?.trim();
+      if (location && location.length > 1) {
+        return location;
+      }
+    }
+  }
+  return undefined;
+}
+
+function extractParticipants(text: string): string[] {
+  const participants: string[] = [];
+  for (const pattern of PARTICIPANT_PATTERNS) {
+    const match = pattern.exec(text);
+    if (match) {
+      const participant = match[1]?.trim();
+      if (participant && participant.length > 1) {
+        participants.push(participant);
+      }
+    }
+  }
+  return participants;
+}
+
+function cleanFillerWords(text: string): string {
+  let cleaned = text;
+  for (const filler of FILLER_WORDS) {
+    cleaned = cleaned.replace(new RegExp(`\\b${filler}\\b`, 'g'), '');
+  }
+  return cleaned.replace(/\s+/g, ' ').trim();
+}
+
+function extractTitle(text: string, taskType?: TaskType, participants?: string[]): string {
   let title = text;
   
   const prefixes = [
@@ -168,9 +254,30 @@ function extractTitle(text: string): string {
     .replace(/\s*בשעה\s*\d{1,2}(:\d{2})?\s*/g, ' ')
     .replace(/\s*ב-?\d{1,2}(:\d{2})?\s*/g, ' ')
     .replace(/\s*(דחוף|קריטי|חשוב|מיידי)\s*/g, ' ')
+    .replace(/\s*(יום\s*)?(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)\s*(הבא|הקרוב)?\s*/g, ' ')
+    .replace(/\s*בעוד\s+\d+\s*(ימים?|שבועות?|חודשים?)\s*/g, ' ')
+    .replace(/\s*(בבוקר|בצהריים|בערב|בלילה)\s*/g, ' ')
+    .replace(/\s*ב(כתובת|מיקום|משרד|סניף|חנות|קניון|פארק|רחוב|שדרות)\s+[^,\.]+/g, ' ')
+    .replace(/\s*אצל\s+(ה)?[^,\.]+/g, ' ')
+    .replace(/\s*(ליד|מול|על יד)\s+[^,\.]+/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
   
-  return title || text.slice(0, 50);
+  if (!title || title.length < 2) {
+    const defaultTitles: Record<TaskType, string> = {
+      meeting: 'פגישה',
+      appointment: 'תור',
+      errand: 'סידור',
+      task: 'משימה',
+      reminder: 'תזכורת'
+    };
+    title = defaultTitles[taskType || 'task'];
+    if (participants && participants.length > 0) {
+      title += ` עם ${participants[0]}`;
+    }
+  }
+  
+  return title;
 }
 
 function detectIntent(text: string): Intent {
@@ -231,17 +338,32 @@ function generateSummary(intent: Intent, extracted: ExtractedData, text: string)
 }
 
 export function interpretInput(text: string, userContext?: UserContext): InterpretResult {
-  const normalizedText = text.trim();
+  const normalizedText = cleanFillerWords(text.trim());
   
   const intent = detectIntent(normalizedText);
   const urgency = extractUrgency(normalizedText);
   const dueAt = extractDate(normalizedText);
-  const title = extractTitle(normalizedText);
+  const taskType = extractTaskType(normalizedText);
+  const location = extractLocation(normalizedText);
+  const participants = extractParticipants(normalizedText);
+  const title = extractTitle(normalizedText, taskType, participants);
+  
+  let confidence: 'high' | 'medium' | 'low' = 'high';
+  if ((taskType === 'meeting' || taskType === 'appointment') && !dueAt) {
+    confidence = 'low';
+  } else if (!dueAt) {
+    confidence = 'medium';
+  }
   
   const extracted: ExtractedData = {
     title,
     dueAt,
     urgency,
+    taskType,
+    location,
+    participants: participants.length > 0 ? participants : undefined,
+    allDay: !(/\d{1,2}:\d{2}/.test(normalizedText) || /בשעה/.test(normalizedText)),
+    confidence,
   };
   
   const questions = generateQuestions(intent, extracted);
@@ -250,11 +372,32 @@ export function interpretInput(text: string, userContext?: UserContext): Interpr
   const autoAction = intent === 'CREATE_TASK' && !!dueAt && urgency !== 'CRITICAL';
   const needsApproval = intent === 'CREATE_TASK' && !dueAt;
   
+  let needs_clarification = false;
+  let clarifying_question: string | null = null;
+  
+  if ((taskType === 'meeting' || taskType === 'appointment') && !dueAt) {
+    needs_clarification = true;
+    clarifying_question = 'מתי תרצה לקבוע את זה?';
+  } else if (intent === 'CREATE_TASK' && !dueAt && !title) {
+    needs_clarification = true;
+    clarifying_question = 'מה המשימה שצריך לעשות?';
+  }
+  
+  const learning_log: LearningLog = {
+    new_time_phrases: [],
+    new_date_phrases: [],
+    new_location_phrases: [],
+    new_task_phrases: [],
+    unclassified_phrases: []
+  };
+  
   return {
     intent,
     extracted,
     autoAction,
     needsApproval,
+    needs_clarification,
+    clarifying_question,
     questions: questions.length > 0 ? questions : undefined,
     insights: {
       summary,
@@ -262,11 +405,15 @@ export function interpretInput(text: string, userContext?: UserContext): Interpr
         originalText: normalizedText,
         detectedIntent: intent,
         detectedUrgency: urgency,
+        detectedTaskType: taskType,
         hasDate: !!dueAt,
         hasTime: /\d{1,2}:\d{2}/.test(normalizedText),
+        hasLocation: !!location,
+        hasParticipants: participants.length > 0,
         wordCount: normalizedText.split(/\s+/).length,
         timestamp: new Date().toISOString(),
       }
-    }
+    },
+    learning_log
   };
 }
