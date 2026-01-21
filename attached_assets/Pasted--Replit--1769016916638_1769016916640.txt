@@ -1,0 +1,183 @@
+מעולה. להלן **פרומפט אחד סגור, חזק ומדויק ל-Replit**, שמטרתו:
+
+* להקים את **השלד הטכנולוגי** של המערכת
+* לפי **7 השכבות**
+* ולממש **בפועל** את היכולת הראשונה:
+  **Input Intake & Intent Understanding**
+* מא’ עד ת’
+* בעברית, עם מונחים טכנולוגיים באנגלית בלבד
+
+אפשר להעתיק כמו שהוא ל-Replit AI.
+
+---
+
+## 🔹 PROMPT ל-REPLIT AI
+
+אני בונה מערכת AI לניהול עצמי ולוז חכם.
+אני צריך שתבנה לי **שלד טכנולוגי מלא (Project Skeleton)** שמבוסס על **7 שכבות לוגיות**, עם מימוש מלא של השכבה הראשונה בלבד.
+
+### 🎯 מטרת השלב הזה
+
+להקים בסיס נכון וסקיילבילי, ולממש **בפועל** את היכולת הראשונה:
+**Input Intake & Intent Understanding**
+
+לא דמו, לא פסאודו – קוד עובד, נקי, מופרד, עם הרחבה עתידית.
+
+---
+
+## 🧱 מבנה 7 השכבות (חובה להגדיר בקוד)
+
+1. **Input Layer**
+   קבלת קלט מהמשתמש (text)
+
+2. **Intent & Context Engine** ← לממש עכשיו במלואו
+   ניתוח כוונה, סוג קלט, רמת מחויבות, הקשר
+
+3. **Decision Engine**
+   קבלת החלטה: execute / ask / reflect / stop
+
+4. **Task & Time Engine**
+   ניהול משימות, זמן, תלות (placeholder בלבד)
+
+5. **Learning Engine**
+   שמירת החלטות, דפוסים (placeholder)
+
+6. **Automation Layer**
+   חיבורים חיצוניים (placeholder)
+
+7. **Feedback & Review Layer**
+   שיקוף ולמידה (placeholder)
+
+---
+
+## 🧠 מימוש מלא נדרש: Intent & Context Engine
+
+### המנוע צריך לדעת:
+
+#### 1. לזהות **Input Type**
+
+* command
+* thought
+* question
+* correction
+* emotional_dump
+
+#### 2. לזהות **Primary Intent**
+
+לדוגמה:
+
+* create_task
+* create_event
+* reschedule
+* inquire
+* cancel
+
+#### 3. לזהות **Commitment Level**
+
+* high
+* medium
+* low
+
+#### 4. לזהות **Entities**
+
+* time
+* duration
+* people
+* location
+* task_name
+
+(גם אם חלקי / משוער)
+
+#### 5. לזהות **Cognitive Load**
+
+* low
+* medium
+* high
+  לפי אורך, חזרות, ניסוח
+
+#### 6. לזהות אם יש **Missing Critical Info**
+
+ולהחזיר רשימה
+
+---
+
+## 🔄 פלט המנוע (חובה מבנה JSON ברור)
+
+```json
+{
+  "inputType": "",
+  "primaryIntent": "",
+  "commitmentLevel": "",
+  "entities": {},
+  "cognitiveLoad": "",
+  "missingInfo": [],
+  "confidenceScore": 0.0
+}
+```
+
+---
+
+## 🧩 דרישות טכנולוגיות
+
+* שפה: TypeScript
+* מבנה: modular architecture
+* כל שכבה בקובץ נפרד
+* שימוש ב-interfaces
+* אין UI, רק core logic
+* מוכן לחיבור ל-API עתידי
+
+---
+
+## 📁 מבנה תיקיות נדרש
+
+```
+/src
+  /layers
+    /input
+    /intent
+    /decision
+    /task
+    /learning
+    /automation
+    /feedback
+  /types
+  /utils
+  index.ts
+```
+
+---
+
+## 🚨 חשוב מאוד
+
+* לא להמציא פיצ'רים שלא ביקשתי
+* לא לדלג על לוגיקה
+* לא להישאר כללי
+* לכתוב קוד קריא, עם comments קצרים באנגלית
+
+---
+
+## ✅ תוצאה רצויה
+
+בסיום:
+
+* אפשר לשלוח משפט טקסט
+* המערכת מחזירה ניתוח כוונה מלא לפי המבנה
+* השכבות האחרות קיימות כ-scaffold בלבד
+
+---
+
+אם סיימת – תוסיף הערה בקוד:
+
+```ts
+// READY FOR NEXT LAYER: Decision Engine
+```
+
+---
+
+אם תרצה, בצעד הבא אני יכול:
+
+* לפרק את ה-Intent Engine לתת-מודולים
+* או לכתוב Prompt המשך לשכבה 2
+* או לעבור איתך שורה-שורה על הלוגיקה לפני הרצה
+
+תגיד איך ממשיכים.
