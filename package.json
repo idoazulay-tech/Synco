@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "db:push": "npx prisma db push",
-    "db:generate": "npx prisma generate"
+    "db:generate": "npx prisma generate",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:intent": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPatterns=intent"
   },
   "dependencies": {
     "@fontsource/heebo": "^5.2.8",
@@ -51,6 +53,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/express-session": "^1.18.2",
+    "@types/jest": "^30.0.0",
     "@types/memoizee": "^0.4.12",
     "@types/passport": "^1.0.17",
     "@types/pg": "^8.16.0",
@@ -66,6 +69,7 @@
     "express-session": "^1.18.2",
     "framer-motion": "^12.23.26",
     "input-otp": "^1.4.2",
+    "jest": "^30.2.0",
     "lucide-react": "^0.462.0",
     "memoizee": "^0.4.17",
     "next-themes": "^0.3.0",
@@ -83,6 +87,7 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",
     "vaul": "^0.9.9",
     "zod": "^3.25.76",
