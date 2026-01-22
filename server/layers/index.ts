@@ -2,17 +2,30 @@
 
 import { InputLayer, type RawInput, type NormalizedInput } from './input';
 import { IntentEngine, analyzeIntent } from './intent';
-import { DecisionEngine, makeDecision } from './decision';
+import { DecisionEngine, type DecisionOutput } from './decision';
 import { TaskEngine, decomposeTask, estimateTaskDuration, manageDayPlan } from './task';
 import { LearningEngine, updateTimeStats, getPersonalTimeStats } from './learning';
 import { AutomationLayer } from './automation';
 import { FeedbackLayer } from './feedback';
-import type { IntentAnalysis, DecisionResult } from './types';
+import type { IntentAnalysis as LegacyIntentAnalysis, DecisionResult } from './types';
+import type { IntentAnalysis as ModularIntentAnalysis } from './intent/types/intentTypes';
 
 export * from './types';
 export * from './input';
 export * from './intent';
-export * from './decision';
+export { 
+  DecisionEngine, 
+  buildActionPlan,
+  THRESHOLDS,
+  INTENT_RULES,
+  QUESTION_TEMPLATES 
+} from './decision';
+export type { 
+  DecisionOutput, 
+  ActionPlan, 
+  Question, 
+  Reflection 
+} from './decision';
 export * from './task';
 export * from './learning';
 export * from './automation';
@@ -50,12 +63,12 @@ export class AIOrchestrator {
     // Layer 2: Analyze intent
     const intentAnalysis = await this.intentEngine.process(normalizedInput);
 
-    // Layer 3: Make decision
-    const decision = await this.decisionEngine.process(intentAnalysis);
+    // Layer 3: Make decision (cast to modular type)
+    const decision = this.decisionEngine.decide(intentAnalysis as unknown as ModularIntentAnalysis);
 
     // Layer 4: Get task decomposition if needed
     let decomposition = null;
-    if (decision.action === 'execute' && 
+    if (decision.decision === 'execute' && 
         (intentAnalysis.primaryIntent === 'create_task' || 
          intentAnalysis.primaryIntent === 'decompose_task')) {
       const personalStats = this.learningEngine.getStats();

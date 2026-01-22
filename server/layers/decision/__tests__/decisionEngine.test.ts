@@ -80,15 +80,7 @@ describe('DecisionEngine', () => {
   });
 
   test('9. follow-up "כן" after confirm question => execute', () => {
-    intentEngine.analyze('תקבע לי פגישה מחר ב-2');
-    contextManager.recordTurn({
-      turnId: 'test-1',
-      rawText: 'תקבע לי פגישה מחר ב-2',
-      intent: 'create_event',
-      entities: { date: { raw: 'מחר', normalized: '2026-01-23' }, time: { raw: '2', normalized: '14:00' } },
-      cognitiveLoad: 'low',
-      timestamp: new Date()
-    });
+    const firstAnalysis = intentEngine.analyze('תקבע לי פגישה מחר ב-2');
     
     const followUpAnalysis = intentEngine.analyze('כן');
     const decision = decisionEngine.decide(followUpAnalysis);
