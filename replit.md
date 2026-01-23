@@ -55,7 +55,24 @@ A modular architecture for intelligent task management:
      - Buffer: 5 minutes between blocks
      - Reshuffle: Plan A (shorten) / Plan B (postpone) options
    - **Store State**: tasks[], events[], notes[], scheduleBlocks[], lastQuestion, lastReflection, contextState, decisionLog[]
-5.  **Learning Engine**: Records patterns and updates personal time statistics.
+5.  **Learning Engine** (`/learning`): FULL IMPLEMENTATION - 20 tests passing
+   - **LearningEngine**: Main orchestrator with collect, detect, propose, confirm methods
+   - **Directory Structure**:
+     - `types/` - DecisionLog, OutcomeLog, Pattern, PreferenceRule, PendingRuleProposal
+     - `models/` - DecisionLog, PreferenceRule, Pattern, ConfidenceModel
+     - `collectors/` - decisionCollector, outcomeCollector
+     - `engines/` - patternDetector, ruleProposer, confidenceUpdater, anomalyDetector
+     - `policies/` - thresholds, ruleSchemas, decay
+     - `store/` - LearningStore (singleton with ILearningStore interface)
+     - `__tests__/` - 20 unit tests (all passing)
+   - **Features**:
+     - 90% automation, 10% questions policy
+     - DecisionLog for point-in-time choices (not rules)
+     - Pattern detection: priority, schedule, reshuffle, mustLock
+     - Confidence model with decay (event-based and time-based)
+     - Anomaly detection (cognitive load, excessive must locks, stress)
+     - Rule proposals after N observations + user confirmation
+   - **Integration**: Hooks into Decision Engine for shouldAskForConfirmation flags
 6.  **Automation Layer**: Placeholder for calendar sync and triggers.
 7.  **Feedback Layer**: Placeholder for day reviews.
 
@@ -66,6 +83,11 @@ A modular architecture for intelligent task management:
 - `POST /api/answer` - Submit answer to pending question
 - `POST /api/action` - Direct UI actions (mark_done, cancel, toggle_must_lock, etc.)
 - `GET /api/state` - Get current store state
+- `GET /api/learning` - Get learning state (rules, patterns, decisions)
+- `POST /api/learning/rule/confirm` - Confirm pending rule proposal
+- `POST /api/learning/rule/decline` - Decline pending rule proposal
+- `POST /api/learning/rule/toggle` - Toggle rule status (pause/resume)
+- `POST /api/learning/process` - Process a learning event
 
 ### AI Lab Frontend (`/ai-lab`)
 Visual interface for testing the full AI flow:
@@ -76,12 +98,14 @@ Visual interface for testing the full AI flow:
 - **TaskList**: Interactive task list with done/cancel/mustLock actions
 - **QuestionModal**: Popup for answering Decision Engine questions
 - **ReflectionCard**: Displays reflection/micro-step messages
+- **LearningPanel**: Shows active rules, pending proposals, recent decisions with toggle controls
 
 ### Test Coverage
-- **Total**: 43 tests passing
+- **Total**: 63 tests passing
 - Layer 2 (Intent): 19 tests
 - Layer 3 (Decision): 12 tests
 - Layer 4 (Task): 12 tests
+- Layer 5 (Learning): 20 tests
 
 ### Rule Engine / Voice-to-Task Engine
 Determines input as `task_or_event` or `journal_entry`. Extracts details for tasks (title, dates, times, location, etc.) and journals (mood, intensity, tags). Features smart title generation, phone call location inference, and identifies actionable tasks from journal entries.

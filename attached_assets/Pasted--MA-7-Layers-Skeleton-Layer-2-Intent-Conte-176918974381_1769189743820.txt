@@ -1,0 +1,226 @@
+אני ממשיך את הפרויקט MA שנבנה לפי הפרומפטים הקודמים:
+- 7 Layers Skeleton
+- Layer 2: Intent & Context Engine
+- Layer 3: Decision Engine
+- Layer 4: Task & Time Engine + Server API + React UI (אנליזה, החלטה, טיימליין, רשימות, מודאל שאלות, פעולות ישירות)
+
+עכשיו אני רוצה שתבנה Layer 5: Learning Engine במלואו, בצורה מודולרית, יציבה, ומחוברת לכל מה שכבר קיים, כך שהמערכת תלמד את המשתמש ותחסוך לו זמן, אבל לא תהפוך החלטות רגעיות לכללים קבועים בטעות.
+
+עקרונות חובה
+1) 90% אוטומציה, 10% שאלות, רק כשצריך
+2) החלטה נקודתית נשמרת כ DecisionLog, לא ככלל
+3) כלל קבוע (PreferenceRule) נוצר רק אחרי דפוס חוזר + אישור משתמש פעם אחת
+4) לכל כלל יש Confidence שעולה עם חזרות ויורד עם חריגות (Decay)
+5) אם יש כלל אבל היום חריג, המערכת עדיין יכולה לשאול, אבל רק שאלה אחת
+6) הכל חייב להיות מוצג בפרונט באופן פרקטי, ולא רק נשמר ברקע
+
+טכנולוגיה
+- TypeScript
+- In-Memory Store עדיין, אבל עם Interfaces שמאפשרים החלפה ל DB בעתיד
+- Unit tests
+- comments באנגלית בלבד
+
+מבנה תיקיות נדרש
+/src/layers/learning
+  index.ts
+  LearningEngine.ts
+  collectors/
+    decisionCollector.ts
+    outcomeCollector.ts
+  models/
+    DecisionLog.ts
+    PreferenceRule.ts
+    Pattern.ts
+    ConfidenceModel.ts
+  engines/
+    patternDetector.ts
+    ruleProposer.ts
+    confidenceUpdater.ts
+    anomalyDetector.ts
+  policies/
+    thresholds.ts
+    ruleSchemas.ts
+    decay.ts
+  store/
+    learningStoreTypes.ts
+  types/
+    learningTypes.ts
+  __tests__/
+    learningEngine.test.ts
+
+חיבור ל Store המרכזי
+להרחיב את InMemoryStore (Layer 4) כך שיכיל גם:
+- decisionLogs[]
+- preferenceRules[]
+- patternStats[]
+- lastOutcomes[]
+- pendingRuleProposal (אם יש הצעה להפוך דפוס לכלל)
+
+DecisionLog (חובה)
+בכל פעם שהמשתמש בחר משהו, נשמר לוג:
+{
+  id,
+  tsIso,
+  situationKey,         
+  primaryIntent,
+  comparedItems: ["taskA","taskB"],  
+  userChoice: "taskA",
+  contextSnapshot: {
+    cognitiveLoad,
+    urgencyLevels,
+    mustLocks,
+    timeWindow,
+    isReshuffle,
+    isFollowUp
+  }
+}
+
+Outcome Log (חובה)
+אחרי ביצוע פעולה, אם יש אינדיקציה לתוצאה, לשמור:
+{
+  id,
+  tsIso,
+  actionType,
+  success: true|false,
+  durationPlannedMinutes,
+  durationActualMinutes|null,
+  userFeedback: "ok|too_slow|wrong|stress",
+  notes: ""
+}
+
+Pattern Detection (חובה)
+לזהות דפוסים לפחות ב 4 קטגוריות:
+1) Priority Patterns
+   דוגמה: כש TaskType=X מול TaskType=Y, המשתמש לרוב בוחר X
+2) Scheduling Patterns
+   דוגמה: המשתמש תמיד מזיז משימות בית לשעות ערב
+3) Reshuffle Preference
+   דוגמה: במצבי דחוף, המשתמש מעדיף Plan B (דחייה) על Plan A (קיצור)
+4) MustLock Behavior
+   דוגמה: המשתמש מסמן MustLock רק לסוג מסוים של משימות
+
+חובה לייצר situationKey יציב
+situationKey הוא מחרוזת שמייצגת סיטואציה דומה, למשל:
+"conflict:taskType=cooking vs taskType=dishes"
+או
+"reshuffle:urgency=high:plans=A|B"
+
+Rule Proposal (Make it a Rule) חובה
+כלל לא נוצר אוטומטית.
+מייצרים הצעה רק אם:
+- זוהתה חזרה של אותו situationKey לפחות N פעמים (למשל 3)
+- והביטחון של הדפוס גבוה (למשל 0.75)
+
+אז ליצור pendingRuleProposal:
+{
+  id,
+  situationKey,
+  suggestedRule: {
+    ruleType: "priority|schedule|reshuffle|mustLock",
+    payload: {}
+  },
+  evidenceCount,
+  confidence,
+  question: {
+    questionId,
+    textHebrew,
+    expectedAnswerType: "confirm",
+    options: ["כן", "לא"]
+  }
+}
+
+אם המשתמש מאשר, להוסיף ל preferenceRules.
+אם לא, לשמור "declined" ולהעלות סף להצעה עתידית (כדי לא להציק).
+
+PreferenceRule (חובה)
+{
+  id,
+  ruleType,
+  situationKey,
+  payload,
+  confidence: 0..1,
+  createdAtIso,
+  updatedAtIso,
+  status: "active|paused"
+}
+
+Confidence Model + Decay (חובה)
+- confidence עולה עם התאמות לכלל
+- יורד עם חריגות
+- אם confidence יורד מתחת סף (למשל 0.4) לעבור למצב paused ולהפסיק להפעיל אוטומטית
+- אם paused ויש שוב חזרות, אפשר להציע להחזיר rule
+
+Anomaly Detector (חובה)
+אם יש כלל פעיל אבל היום חריג:
+סימנים לחריג:
+- cognitiveLoad high
+- urgency לא רגיל
+- mustLocks רבים
+- משתמש מסמן יותר ביטולים מהרגיל
+
+במצב חריג:
+- לא מבטלים כללים
+- רק מורידים confidence זמנית
+- ובמקום auto apply, Decision Engine יקבל flag מה Learning Engine:
+  "shouldAskForConfirmation": true
+אבל עדיין שאלה אחת בלבד
+
+Integration עם Layer 3 Decision Engine (חובה)
+להוסיף hook כך ש DecisionEngine יקבל:
+- activeRules relevant for situationKey
+- anomaly flags
+- rule confidence
+
+DecisionEngine ישתמש בזה כך:
+- אם יש rule פעיל ו confidence גבוה ולא חריג, אפשר להכריע בלי לשאול
+- אם confidence בינוני או חריג, לשאול confirm קצר
+
+Integration עם UI (חובה פרקטי)
+להוסיף למסכי React:
+1) LearningPanel חדש שמציג:
+- Rules Active (שם קצר + confidence)
+- Pending Rule Proposal (מודאל כן או לא)
+- Recent Decisions (3 אחרונים)
+
+2) בזמן שיש pendingRuleProposal:
+להציג Modal קטן:
+"המערכת זיהתה דפוס: בדרך כלל אתה בוחר X לפני Y. להפוך את זה לכלל קבוע?"
+כפתורים: כן, לא
+
+3) להוסיף Toggle לכלל:
+Pause / Resume
+
+API Routes חדשים (חובה)
+GET  /api/learning
+POST /api/learning/rule/confirm
+POST /api/learning/rule/toggle
+
+Flow Service Update (חובה)
+ב server/services/flowService.ts
+אחרי TaskTimeEngine.apply:
+- call LearningEngine.collectDecision אם היה userChoice
+- call LearningEngine.collectOutcome אם יש נתוני זמן או פידבק
+- call LearningEngine.detectPatterns
+- אם יש rule proposal, להחזיר ל UIInstructions
+
+Unit Tests (חובה)
+ב learningEngine.test.ts לפחות 12 בדיקות:
+- יצירת DecisionLog
+- זיהוי pattern אחרי N חזרות
+- יצירת proposal
+- confirm proposal יוצר rule
+- decline לא יוצר rule
+- confidence עולה ויורד נכון
+- pause rule מונע שימוש
+- anomaly detector מרים flag
+- integration: rule גבוה מוריד שאלות ב DecisionEngine (simulate)
+- reshuffle preference נשמרת
+- mustLock behavior pattern
+- rule decay מתחת threshold הופך paused
+
+בסיום
+1) להריץ build
+2) להריץ tests
+3) לוודא UI מציג LearningPanel ו Pending Rule Proposal בפועל
+4) להוסיף comment:
+// READY FOR NEXT LAYER: Automation Layer

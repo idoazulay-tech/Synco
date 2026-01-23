@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Send, RefreshCw, Trash2, Clock, CheckCircle2, XCircle, Lock, Unlock, Brain, MessageSquare, Zap, Calendar } from 'lucide-react';
+import LearningPanel from '@/components/LearningPanel';
 
 interface Task {
   id: string;
@@ -496,6 +497,8 @@ export default function AILabPage() {
                 )}
               </CardContent>
             </Card>
+
+            <LearningPanel />
           </div>
         </div>
       </div>
