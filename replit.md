@@ -204,3 +204,50 @@ Offers breathing exercises, grounding techniques, and quick physical exercises, 
 - **next-themes**: Theme switching.
 - **sonner**: Toast notifications.
 - **Heebo Font**: Hebrew-optimized font.
+
+## Mobile App (React Native + Expo)
+
+### Overview
+A companion mobile app built with React Native and Expo that connects to the MA server API. Allows voice and text input from the phone.
+
+### Directory Structure
+```
+mobile/
+  app/                   # Expo Router screens
+    _layout.tsx          # Tab navigation with RTL support
+    index.tsx            # Input screen (text + voice)
+    shikul.tsx           # Questions/check-ins screen
+    settings.tsx         # Server configuration
+  components/
+    QuestionBlock.tsx    # Uniform question block with yes/no/free text
+    VoiceInput.tsx       # Voice recording modal
+  api/
+    MAApiClient.ts       # API client for MA server
+  constants/
+    Colors.ts            # Theme colors
+```
+
+### Features
+- **Input Screen**: Text input with send button, microphone for voice input
+- **Shikul Screen**: Pending questions from MA with uniform block design (question, free text, buttons)
+- **Settings**: Server URL configuration and connection test
+
+### API Integration
+- POST /api/analyze - Send text for analysis
+- POST /api/answer - Answer a question
+- GET /api/feedback - Get pending check-ins
+- POST /api/feedback/checkin/respond - Respond to check-in
+
+### Running the Mobile App
+```bash
+cd mobile
+npm install
+npm start
+```
+Then scan QR code with Expo Go app on your phone.
+
+### Limitations (MVP)
+- Works only when app is open (no background mode yet)
+- Voice input requires real device with Expo Go
+- No Volume button trigger (requires native Android)
+- No Direct Reply from notifications (requires native Android)
