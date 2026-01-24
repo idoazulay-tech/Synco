@@ -27,6 +27,8 @@ Preferred communication style: Simple, everyday language.
     - **Notification System**: In-app notifications with user-configurable settings.
     - **Mental Focus Feature (מיקוד מנטלי)**: Motivational phrases during tasks based on completion.
     - **HaMefraket (המפרקט) - Smart ADHD Assistant**: Intelligent interface for quick input, insights, and self-regulation exercises.
+    - **MA Auto-Task Creation**: When MA is confident about task details, tasks are automatically created and added to the calendar without manual confirmation.
+    - **Clarifying Questions Loop**: When MA needs more information (uncertain about time, date, etc.), questions appear in the ארגון (Organization) page. User answers are re-analyzed by MA until task can be created with complete details.
 
 ### Backend and AI Architecture
 The backend is built with Express.js and TypeScript, using PostgreSQL via Prisma. It incorporates a 7-Layer AI architecture for intelligent task management:
