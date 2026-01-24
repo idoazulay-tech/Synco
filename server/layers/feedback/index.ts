@@ -1,49 +1,44 @@
-// Layer 7: Feedback & Review Layer
-// Reflection, review, and user feedback (placeholder)
+// Layer 7: Feedback & Review Layer - Public API
 
-export interface DayReview {
-  date: string;
-  tasksPlanned: number;
-  tasksCompleted: number;
-  totalPlannedMinutes: number;
-  totalActualMinutes: number;
-  highlights: string[];
-  improvements: string[];
-}
+export { 
+  FeedbackReviewLayer, 
+  getFeedbackLayer, 
+  resetFeedbackLayer 
+} from './FeedbackReviewLayer.js';
 
-export interface UserFeedback {
-  timestamp: Date;
-  type: 'positive' | 'negative' | 'suggestion';
-  context: string;
-  message: string;
-}
+export type {
+  FeedbackMessage,
+  CheckInRequest,
+  FeedbackContext,
+  FeedbackType,
+  ToneType,
+  ShowAsType,
+  PriorityType,
+  RelatedLayer,
+  EntityType,
+  CheckInReason,
+  ExpectedAnswerType,
+  PlannedVsActualEntry,
+  CompletionRateEntry,
+  StressSignalEntry,
+  StressLevel,
+  FeedbackStats,
+  ReflectionInput,
+  PostActionInput,
+  AutomationFeedbackInput,
+  DailyReviewData,
+  FeedbackUIInstructions
+} from './types/feedbackTypes.js';
 
-export class FeedbackLayer {
-  private reviews: DayReview[] = [];
-  private feedback: UserFeedback[] = [];
+export { getFeedbackStore, resetFeedbackStore } from './store/FeedbackStore.js';
 
-  async generateDayReview(date: string, tasks: any[]): Promise<DayReview> {
-    const planned = tasks.length;
-    const completed = tasks.filter((t: any) => t.status === 'completed').length;
-    
-    return {
-      date,
-      tasksPlanned: planned,
-      tasksCompleted: completed,
-      totalPlannedMinutes: 0, // Would calculate from tasks
-      totalActualMinutes: 0,
-      highlights: completed > 0 ? [`השלמת ${completed} משימות!`] : [],
-      improvements: planned > completed ? ['נסה לתכנן פחות משימות'] : []
-    };
-  }
+export { generateReflection } from './generators/reflectionGenerator.js';
+export { generatePostActionFeedback } from './generators/postActionGenerator.js';
+export { generateDailyReview } from './generators/dailyReviewGenerator.js';
+export { generateMicroStep, determineSituation } from './generators/microStepGenerator.js';
 
-  async recordFeedback(feedback: UserFeedback): Promise<void> {
-    this.feedback.push(feedback);
-  }
+export { analyzeGap } from './analyzers/gapAnalyzer.js';
+export { analyzeAutomationResult } from './analyzers/successFailureAnalyzer.js';
+export { analyzeOverload } from './analyzers/overloadAnalyzer.js';
 
-  getReviews(limit: number = 7): DayReview[] {
-    return this.reviews.slice(-limit);
-  }
-}
-
-// ALL LAYERS SCAFFOLDED - READY FOR INTEGRATION
+// MA CORE COMPLETE: Layers 1-7 READY FOR EXPANSION
