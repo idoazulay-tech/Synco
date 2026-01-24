@@ -14,20 +14,47 @@ interface QuickInputPanelProps {
   onModeChange: (mode: 'text' | 'voice') => void;
 }
 
+interface TaskOutput {
+  title: string;
+  start_date: string | null;
+  start_time: string | null;
+  end_date: string | null;
+  end_time: string | null;
+  all_day: boolean;
+  location: string | null;
+  participants: string[];
+  type: string;
+  priority: string;
+  flexibility: string;
+  notes: string | null;
+  source: string;
+  confidence: string;
+  needs_clarification: boolean;
+  clarifying_question: string | null;
+}
+
+interface JournalOutput {
+  title: string;
+  entry_text: string;
+  timestamp_local: string;
+  tags: string[];
+  mood_hint: string;
+  intensity: number;
+  action_suggestion: string | null;
+}
+
+interface SuggestedTask {
+  title: string;
+  reason: string;
+  confidence: string;
+}
+
 interface InterpretResult {
-  intent: string;
-  extracted: {
-    title?: string;
-    dueAt?: string;
-    urgency?: string;
-  };
-  autoAction: boolean;
-  needsApproval: boolean;
-  questions?: string[];
-  insights: {
-    summary: string;
-    detected: Record<string, unknown>;
-  };
+  mode: 'task_or_event' | 'journal_entry';
+  task: TaskOutput | null;
+  journal: JournalOutput | null;
+  suggested_tasks_from_journal: SuggestedTask[];
+  learning_log: Record<string, string[]>;
   action?: {
     type: string;
     taskFile?: { id: string; title: string };

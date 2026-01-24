@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   CheckCircle, 
@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { InsightsDrawer } from './InsightsDrawer';
 import { useTaskStore } from '@/store/taskStore';
+import { useMAStore } from '@/store/maStore';
 import { addMinutes, format } from 'date-fns';
 
 interface TaskOutput {
@@ -127,10 +128,87 @@ export function UnderstandingScreen({ result, originalText, onReset, onClose }: 
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [selectedTime, setSelectedTime] = useState(format(new Date(), 'HH:mm'));
   const [taskDuration, setTaskDuration] = useState(30);
+  const [autoCreated, setAutoCreated] = useState(false);
+  const [questionSent, setQuestionSent] = useState(false);
+  const [lastResultId, setLastResultId] = useState<string | null>(null);
   const addTask = useTaskStore((state) => state.addTask);
+  const addMAMessage = useMAStore((state) => state.addMessage);
   
   const modeInfo = modeLabels[result.mode] || modeLabels.task_or_event;
   const ModeIcon = modeInfo.icon;
+  
+  // Generate a unique ID for this result to track if it changed (use action ID or timestamp)
+  const resultId = result.action?.taskRun?.id || 
+                   result.action?.taskFile?.id || 
+                   `${result.task?.title || ''}-${result.task?.start_date || ''}-${result.task?.start_time || ''}` ||
+                   `${result.journal?.timestamp_local || ''}`;
+  
+  // Reset states when result changes (new input analyzed)
+  useEffect(() => {
+    if (resultId && resultId !== lastResultId) {
+      setAutoCreated(false);
+      setQuestionSent(false);
+      setLastResultId(resultId);
+    }
+  }, [resultId, lastResultId]);
+
+  // Auto-create task when MA is confident (high confidence + task created on server)
+  useEffect(() => {
+    if (result.action?.type === 'TASK_CREATED' && result.task && !autoCreated) {
+      const now = new Date();
+      let startTime: Date;
+      let taskStatus: 'pending' | 'in_progress' = 'pending';
+      const duration = 30;
+      
+      if (result.task.start_date) {
+        const dateParts = result.task.start_date.split('-').map(Number);
+        if (dateParts.length === 3) {
+          const [year, month, day] = dateParts;
+          if (result.task.start_time) {
+            const timeParts = result.task.start_time.split(':').map(Number);
+            const [hours, minutes] = timeParts;
+            startTime = new Date(year, month - 1, day, hours, minutes);
+          } else {
+            startTime = new Date(year, month - 1, day, 12, 0);
+          }
+        } else {
+          startTime = now;
+          taskStatus = 'in_progress';
+        }
+      } else {
+        startTime = now;
+        taskStatus = 'in_progress';
+      }
+      
+      const endTime = addMinutes(startTime, duration);
+      
+      addTask({
+        title: result.task.title,
+        startTime,
+        endTime,
+        duration,
+        status: taskStatus,
+        tags: [],
+        location: result.task.location || undefined,
+      });
+      
+      setAutoCreated(true);
+      setTaskCreated(true);
+      setCreatedTaskTime(startTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }));
+    }
+  }, [result, autoCreated, addTask]);
+
+  // Send clarifying questions to MA store for display in ארגון page
+  useEffect(() => {
+    if (result.task?.needs_clarification && result.task.clarifying_question && !questionSent) {
+      addMAMessage({
+        type: 'question',
+        text: result.task.clarifying_question,
+        taskTitle: result.task.title,
+      });
+      setQuestionSent(true);
+    }
+  }, [result, questionSent, addMAMessage]);
   
   const wasTaskCreated = result.action?.type === 'TASK_CREATED' || taskCreated;
   const canCreateTask = result.mode === 'task_or_event' && result.task && !wasTaskCreated;

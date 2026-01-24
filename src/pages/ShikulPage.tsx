@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { 
   MessageSquare, 
   HelpCircle, 
@@ -16,9 +17,13 @@ import {
   Home,
   RefreshCw,
   Bot,
-  User
+  User,
+  Send
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useMAStore, MAMessage } from '@/store/maStore';
+import { useTaskStore } from '@/store/taskStore';
+import { addMinutes } from 'date-fns';
 
 interface CheckInRequest {
   id: string;
@@ -88,6 +93,13 @@ export default function ShikulPage() {
   const queryClient = useQueryClient();
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<string | null>(null);
+  
+  // Local MA Store
+  const maMessages = useMAStore((state) => state.messages);
+  const answerMessage = useMAStore((state) => state.answerMessage);
+  const addTask = useTaskStore((state) => state.addTask);
+  
+  const unansweredMessages = maMessages.filter(m => !m.answered);
 
   const { data: feedbackData, isLoading: feedbackLoading, refetch: refetchFeedback } = useQuery<FeedbackResponse>({
     queryKey: ['/api/feedback', 20],
@@ -142,7 +154,90 @@ export default function ShikulPage() {
   const highPriorityFeedback = feedbackData?.feedbackFeed?.filter(f => f.priority === 'high' && !f.dismissed) || [];
   const otherFeedback = feedbackData?.feedbackFeed?.filter(f => f.priority !== 'high' && !f.dismissed).slice(0, 5) || [];
 
-  const hasItems = pendingCheckIn || pendingPlan || highPriorityFeedback.length > 0 || otherFeedback.length > 0;
+  const hasItems = pendingCheckIn || pendingPlan || highPriorityFeedback.length > 0 || otherFeedback.length > 0 || unansweredMessages.length > 0;
+
+  // Handle answering a local MA message (e.g., providing missing info for task creation)
+  const handleMAMessageResponse = async (message: MAMessage, response: string) => {
+    if (!response.trim()) return;
+    
+    setSubmitting(message.id);
+    
+    try {
+      // Send the response back to MA for proper parsing
+      // Combine original task context with user response
+      const combinedInput = message.taskTitle 
+        ? `${message.taskTitle} ${response}` 
+        : response;
+      
+      const apiResponse = await fetch('/api/quick', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: combinedInput }),
+      });
+      
+      if (apiResponse.ok) {
+        const result = await apiResponse.json();
+        
+        // If MA successfully created a task or it's now clear enough
+        if (result.action?.type === 'TASK_CREATED' || (result.task && !result.task.needs_clarification)) {
+          const now = new Date();
+          let startTime: Date = now;
+          let taskStatus: 'pending' | 'in_progress' = 'in_progress';
+          const duration = 30;
+          
+          if (result.task?.start_date) {
+            const dateParts = result.task.start_date.split('-').map(Number);
+            if (dateParts.length === 3) {
+              const [year, month, day] = dateParts;
+              if (result.task.start_time) {
+                const timeParts = result.task.start_time.split(':').map(Number);
+                const [hours, minutes] = timeParts;
+                startTime = new Date(year, month - 1, day, hours, minutes);
+                taskStatus = startTime > now ? 'pending' : 'in_progress';
+              } else {
+                startTime = new Date(year, month - 1, day, 12, 0);
+                taskStatus = 'pending';
+              }
+            }
+          }
+          
+          addTask({
+            title: result.task?.title || message.taskTitle || response,
+            startTime,
+            endTime: addMinutes(startTime, duration),
+            duration,
+            status: taskStatus,
+            tags: [],
+            location: result.task?.location || undefined,
+          });
+          
+          // Mark original as answered - task was created
+          answerMessage(message.id, response);
+        } else if (result.task?.needs_clarification && result.task.clarifying_question) {
+          // Still needs more info - add new question to MA store and mark old one answered
+          answerMessage(message.id, response);
+          useMAStore.getState().addMessage({
+            type: 'question',
+            text: result.task.clarifying_question,
+            taskTitle: result.task.title,
+          });
+        } else {
+          // Just mark as answered even if something unexpected happened
+          answerMessage(message.id, response);
+        }
+      } else {
+        // API error - mark as answered but don't create task
+        answerMessage(message.id, response);
+      }
+      
+    } catch (err) {
+      console.error('Failed to process MA response:', err);
+    } finally {
+      setSubmitting(null);
+      // Clear the response input
+      setResponses(prev => ({ ...prev, [message.id]: '' }));
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background" dir="rtl">
@@ -186,6 +281,57 @@ export default function ShikulPage() {
           </Card>
         ) : (
           <div className="space-y-4">
+            {/* Local MA Questions (from input parsing) */}
+            {unansweredMessages.length > 0 && (
+              <div className="space-y-3">
+                {unansweredMessages.map((message) => (
+                  <Card key={message.id} className="border-r-4 border-r-blue-500" data-testid={`card-ma-message-${message.id}`}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge variant="secondary" className="gap-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          <Bot className="h-3 w-3" />
+                          MA
+                        </Badge>
+                        <CardTitle className="text-base flex-1 text-right">
+                          {message.taskTitle ? `לגבי: ${message.taskTitle}` : 'שאלה'}
+                        </CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <p className="text-foreground leading-relaxed">{message.text}</p>
+                      
+                      <div className="flex gap-2">
+                        <Input
+                          value={responses[message.id] || ''}
+                          onChange={(e) => updateResponse(message.id, e.target.value)}
+                          placeholder="הקלד תשובה..."
+                          className="flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && responses[message.id]?.trim()) {
+                              handleMAMessageResponse(message, responses[message.id]);
+                            }
+                          }}
+                          data-testid={`input-ma-response-${message.id}`}
+                        />
+                        <Button
+                          size="icon"
+                          onClick={() => handleMAMessageResponse(message, responses[message.id] || '')}
+                          disabled={!responses[message.id]?.trim() || submitting === message.id}
+                          data-testid={`button-send-ma-response-${message.id}`}
+                        >
+                          {submitting === message.id ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
             {/* Pending Check-in */}
             {pendingCheckIn && (
               <Card className="border-r-4 border-r-primary" data-testid="card-checkin">
