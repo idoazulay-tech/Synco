@@ -29,6 +29,12 @@ export default function InputScreen() {
   const handleSend = useCallback(async () => {
     if (!inputText.trim()) return;
 
+    // Check if server is configured
+    if (!apiClient.isConfigured()) {
+      setError('יש להגדיר כתובת שרת בהגדרות תחילה');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setResponse(null);

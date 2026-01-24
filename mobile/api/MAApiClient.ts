@@ -65,10 +65,20 @@ export interface FeedbackStats {
 
 class MAApiClient {
   private baseUrl: string;
+  private static readonly STORAGE_KEY = 'ma_server_url';
 
   constructor(baseUrl?: string) {
-    // Default to the Replit dev URL - will be updated with actual URL
+    // Default to empty - user must configure in Settings
+    // In production, this would be loaded from AsyncStorage on init
     this.baseUrl = baseUrl || '';
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
+  isConfigured(): boolean {
+    return this.baseUrl.length > 0;
   }
 
   setBaseUrl(url: string): void {

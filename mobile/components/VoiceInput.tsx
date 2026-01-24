@@ -52,13 +52,13 @@ export default function VoiceInput({ onResult, onClose }: VoiceInputProps) {
     setError(null);
     setTranscript('');
 
-    // Note: In a real implementation, we would use expo-speech or
-    // a speech recognition library here. For MVP, we'll simulate
-    // the interface and show a message about the limitation.
+    // MVP LIMITATION: Real speech-to-text requires native modules
+    // expo-speech is TTS (text-to-speech), not STT
+    // For real STT, would need @react-native-voice/voice or similar
+    // This placeholder demonstrates the UI flow
     
-    // Simulating speech recognition delay
     setTimeout(() => {
-      setError('הקלטה קולית דורשת הרצה על מכשיר אמיתי עם Expo Go');
+      setError('הקלטה קולית דורשת native module שלא זמין ב-Expo Go.\nהשתמש בקלט טקסט בינתיים.');
       setIsListening(false);
     }, 2000);
   };

@@ -1,12 +1,15 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useColorScheme, I18nManager } from 'react-native';
+import { useColorScheme, I18nManager, Platform } from 'react-native';
 import { Colors } from '@/constants/Colors';
 import { useEffect } from 'react';
 
-// Enable RTL for Hebrew
-I18nManager.allowRTL(true);
-I18nManager.forceRTL(true);
+// Enable RTL for Hebrew - this should ideally be set in app entry before first render
+// On Android, a reload may be required for RTL to take effect
+if (!I18nManager.isRTL) {
+  I18nManager.allowRTL(true);
+  I18nManager.forceRTL(true);
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

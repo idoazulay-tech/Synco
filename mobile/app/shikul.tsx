@@ -23,6 +23,12 @@ export default function ShikulScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchQuestions = useCallback(async () => {
+    // Check if server is configured
+    if (!apiClient.isConfigured()) {
+      setError('יש להגדיר כתובת שרת בהגדרות');
+      return;
+    }
+
     try {
       const feedback = await apiClient.getFeedback();
       setQuestions(feedback.pendingCheckIns || []);

@@ -82,7 +82,8 @@ export default function SettingsScreen() {
       color: colors.text,
       borderWidth: 1,
       borderColor: colors.border,
-      textAlign: 'left',
+      textAlign: 'left', // URLs are LTR even in RTL apps
+      writingDirection: 'ltr', // Force LTR for URL input
       marginBottom: 12,
     },
     button: {
