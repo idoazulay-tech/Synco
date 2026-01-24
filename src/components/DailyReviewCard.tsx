@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Calendar, Target, AlertTriangle, Lightbulb, RefreshCw } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
 
 interface DailyReviewData {
   dateIso: string;
@@ -26,9 +25,12 @@ export function DailyReviewCard({ reviewData, onClose }: DailyReviewCardProps) {
 
   const requestReviewMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('/api/feedback/daily-review/request', {
-        method: 'POST'
+      const response = await fetch('/api/feedback/daily-review/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       });
+      if (!response.ok) throw new Error('Request failed');
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/feedback'] });

@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { apiRequest } from "@/lib/queryClient";
 import { Clock, HelpCircle, Heart, AlertTriangle, MessageCircle } from "lucide-react";
 
 interface CheckInRequest {
@@ -34,17 +33,17 @@ export function CheckInModal({ checkIn, isOpen, onClose }: CheckInModalProps) {
   const queryClient = useQueryClient();
 
   const respondMutation = useMutation({
-    mutationFn: async (response: string) => {
-      return apiRequest('/api/feedback/checkin/respond', {
+    mutationFn: async (responseText: string) => {
+      const response = await fetch('/api/feedback/checkin/respond', {
         method: 'POST',
         body: JSON.stringify({
-          response,
+          response: responseText,
           checkInId: checkIn?.id
         }),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
+      if (!response.ok) throw new Error('Request failed');
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/feedback'] });

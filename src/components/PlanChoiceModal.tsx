@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { apiRequest } from "@/lib/queryClient";
 import { GitBranch, Clock, ArrowRight, X } from "lucide-react";
 
 interface PlanChange {
@@ -51,16 +50,16 @@ export function PlanChoiceModal({ proposal, isOpen, onClose }: PlanChoiceModalPr
 
   const submitMutation = useMutation({
     mutationFn: async (planId: 'A' | 'B') => {
-      return apiRequest('/api/answer', {
+      const response = await fetch('/api/answer', {
         method: 'POST',
         body: JSON.stringify({
           questionId: 'plan_choice',
           answer: planId
         }),
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' }
       });
+      if (!response.ok) throw new Error('Request failed');
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/state'] });
