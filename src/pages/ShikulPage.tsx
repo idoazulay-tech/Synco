@@ -21,7 +21,7 @@ import {
   Send,
   AlertTriangle
 } from 'lucide-react';
-import { Link } from 'wouter';
+import { Link } from 'react-router-dom';
 import { useMAStore, MAMessage } from '@/store/maStore';
 import { useTaskStore } from '@/store/taskStore';
 import { addMinutes } from 'date-fns';
