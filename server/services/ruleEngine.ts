@@ -154,10 +154,11 @@ function determineMode(text: string): 'task_or_event' | 'journal_entry' {
   return 'journal_entry';
 }
 
-function extractDate(text: string): { date: string | null; time: string | null } {
+function extractDate(text: string): { date: string | null; time: string | null; end_time: string | null } {
   const now = new Date();
   let date: Date | null = null;
   let time: string | null = null;
+  let end_time: string | null = null;
 
   if (/היום/.test(text)) {
     date = now;
@@ -194,27 +195,47 @@ function extractDate(text: string): { date: string | null; time: string | null }
     }
   }
 
-  const timeMatch = text.match(/(?:בשעה\s*|ב-?)(\d{1,2})(?::(\d{2}))?/);
-  if (timeMatch) {
-    let hours = parseInt(timeMatch[1]);
-    const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-    if (hours < 12 && /(בערב|בלילה|אחהצ|אחר הצהריים)/.test(text)) {
-      hours += 12;
+  // Check for time range patterns first: "מ12 עד 15", "מהשעה 12 עד 15", "בין 12 ל15"
+  const timeRangeMatch = text.match(/(?:מ-?|מהשעה\s*|בין\s*)(\d{1,2})(?::(\d{2}))?\s*(?:עד|ל-?|ו-?)\s*(\d{1,2})(?::(\d{2}))?/);
+  if (timeRangeMatch) {
+    let startHours = parseInt(timeRangeMatch[1]);
+    const startMinutes = timeRangeMatch[2] ? parseInt(timeRangeMatch[2]) : 0;
+    let endHours = parseInt(timeRangeMatch[3]);
+    const endMinutes = timeRangeMatch[4] ? parseInt(timeRangeMatch[4]) : 0;
+    
+    // Adjust for PM if mentioned
+    if (startHours < 12 && /(בערב|בלילה|אחהצ|אחר הצהריים)/.test(text)) {
+      startHours += 12;
+      if (endHours < startHours) endHours += 12;
     }
-    time = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  } else if (/בבוקר/.test(text)) {
-    time = '09:00';
-  } else if (/בצהריים/.test(text)) {
-    time = '12:00';
-  } else if (/אחהצ|אחר הצהריים/.test(text)) {
-    time = '15:00';
-  } else if (/בערב/.test(text)) {
-    time = '20:00';
+    
+    time = `${startHours.toString().padStart(2, '0')}:${startMinutes.toString().padStart(2, '0')}`;
+    end_time = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+  } else {
+    // Single time extraction
+    const timeMatch = text.match(/(?:בשעה\s*|ב-?)(\d{1,2})(?::(\d{2}))?/);
+    if (timeMatch) {
+      let hours = parseInt(timeMatch[1]);
+      const minutes = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+      if (hours < 12 && /(בערב|בלילה|אחהצ|אחר הצהריים)/.test(text)) {
+        hours += 12;
+      }
+      time = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    } else if (/בבוקר/.test(text)) {
+      time = '09:00';
+    } else if (/בצהריים/.test(text)) {
+      time = '12:00';
+    } else if (/אחהצ|אחר הצהריים/.test(text)) {
+      time = '15:00';
+    } else if (/בערב/.test(text)) {
+      time = '20:00';
+    }
   }
 
   return {
     date: date ? date.toISOString().split('T')[0] : null,
-    time
+    time,
+    end_time
   };
 }
 
@@ -548,7 +569,7 @@ export function interpretInput(text: string): InterpretResult {
   };
 
   if (mode === 'task_or_event') {
-    const { date, time } = extractDate(normalizedText);
+    const { date, time, end_time } = extractDate(normalizedText);
     const taskType = extractTaskType(normalizedText);
     const participants = extractParticipants(normalizedText);
     const explicitLocation = extractLocation(normalizedText);
@@ -578,7 +599,7 @@ export function interpretInput(text: string): InterpretResult {
       start_date: date,
       start_time: time,
       end_date: date,
-      end_time: null,
+      end_time: end_time,
       all_day: !time,
       location,
       participants,

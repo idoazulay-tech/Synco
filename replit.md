@@ -21,7 +21,7 @@ Preferred communication style: Simple, everyday language.
 - **Styling**: Tailwind CSS with shadcn/ui for components, built on Radix UI.
 - **UI/UX**: Features a circular progress timer, day/month calendar views, task completion tracking, and a task template system ("המתנה").
 - **Key Features**:
-    - **HaMekolel Smart Parser (המכולל)**: Natural language Hebrew text parser for scheduling tasks.
+    - **HaMekolel Smart Parser (המכולל)**: Natural language Hebrew text parser for scheduling tasks. Supports time ranges like "מ12 עד 15" or "בין 10 ל-12".
     - **Voice Input (קלט קולי)**: Web Speech API for Hebrew speech recognition, integrated with HaMekolel.
     - **Conflict Detection**: Visual warnings for overlapping tasks.
     - **Notification System**: In-app notifications with user-configurable settings.

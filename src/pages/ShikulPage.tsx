@@ -182,8 +182,8 @@ export default function ShikulPage() {
         if (result.action?.type === 'TASK_CREATED' || (result.task && !result.task.needs_clarification)) {
           const now = new Date();
           let startTime: Date = now;
+          let endTime: Date = addMinutes(now, 30);
           let taskStatus: 'pending' | 'in_progress' = 'in_progress';
-          const duration = 30;
           
           if (result.task?.start_date) {
             const dateParts = result.task.start_date.split('-').map(Number);
@@ -198,13 +198,24 @@ export default function ShikulPage() {
                 startTime = new Date(year, month - 1, day, 12, 0);
                 taskStatus = 'pending';
               }
+              
+              // Use end_time from result if available
+              if (result.task.end_time) {
+                const endTimeParts = result.task.end_time.split(':').map(Number);
+                const [endHours, endMinutes] = endTimeParts;
+                endTime = new Date(year, month - 1, day, endHours, endMinutes);
+              } else {
+                endTime = addMinutes(startTime, 30);
+              }
             }
           }
+          
+          const duration = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
           
           addTask({
             title: result.task?.title || message.taskTitle || response,
             startTime,
-            endTime: addMinutes(startTime, duration),
+            endTime,
             duration,
             status: taskStatus,
             tags: [],

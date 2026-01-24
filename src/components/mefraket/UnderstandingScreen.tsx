@@ -157,8 +157,8 @@ export function UnderstandingScreen({ result, originalText, onReset, onClose }: 
     if (result.action?.type === 'TASK_CREATED' && result.task && !autoCreated) {
       const now = new Date();
       let startTime: Date;
+      let endTime: Date;
       let taskStatus: 'pending' | 'in_progress' = 'pending';
-      const duration = 30;
       
       if (result.task.start_date) {
         const dateParts = result.task.start_date.split('-').map(Number);
@@ -171,16 +171,27 @@ export function UnderstandingScreen({ result, originalText, onReset, onClose }: 
           } else {
             startTime = new Date(year, month - 1, day, 12, 0);
           }
+          
+          // Use end_time from result if available
+          if (result.task.end_time) {
+            const endTimeParts = result.task.end_time.split(':').map(Number);
+            const [endHours, endMinutes] = endTimeParts;
+            endTime = new Date(year, month - 1, day, endHours, endMinutes);
+          } else {
+            endTime = addMinutes(startTime, 30);
+          }
         } else {
           startTime = now;
+          endTime = addMinutes(now, 30);
           taskStatus = 'in_progress';
         }
       } else {
         startTime = now;
+        endTime = addMinutes(now, 30);
         taskStatus = 'in_progress';
       }
       
-      const endTime = addMinutes(startTime, duration);
+      const duration = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
       
       addTask({
         title: result.task.title,
