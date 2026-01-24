@@ -27,6 +27,7 @@ import { cn } from '@/lib/utils';
 import { InsightsDrawer } from './InsightsDrawer';
 import { useTaskStore } from '@/store/taskStore';
 import { useMAStore } from '@/store/maStore';
+import { useNotificationStore } from '@/store/notificationStore';
 import { addMinutes, format } from 'date-fns';
 
 interface TaskOutput {
@@ -133,6 +134,7 @@ export function UnderstandingScreen({ result, originalText, onReset, onClose }: 
   const [lastResultId, setLastResultId] = useState<string | null>(null);
   const addTask = useTaskStore((state) => state.addTask);
   const addMAMessage = useMAStore((state) => state.addMessage);
+  const addNotification = useNotificationStore((state) => state.addNotification);
   
   const modeInfo = modeLabels[result.mode] || modeLabels.task_or_event;
   const ModeIcon = modeInfo.icon;
@@ -203,11 +205,19 @@ export function UnderstandingScreen({ result, originalText, onReset, onClose }: 
         location: result.task.location || undefined,
       });
       
+      // Send success notification
+      const timeStr = startTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+      addNotification({
+        type: 'success',
+        title: 'משימה נוצרה',
+        message: `"${result.task.title}" נוספה ללוח בשעה ${timeStr}`,
+      });
+      
       setAutoCreated(true);
       setTaskCreated(true);
-      setCreatedTaskTime(startTime.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }));
+      setCreatedTaskTime(timeStr);
     }
-  }, [result, autoCreated, addTask]);
+  }, [result, autoCreated, addTask, addNotification]);
 
   // Send clarifying questions to MA store for display in ארגון page
   useEffect(() => {
