@@ -5,6 +5,7 @@ import { getOrchestrator } from '../layers/index.js';
 import { TaskTimeEngine } from '../layers/task/TaskTimeEngine.js';
 import { getStore, resetStore } from '../layers/task/store/InMemoryStore.js';
 import { getAutomationLayer } from '../layers/automation/index.js';
+import { getFeedbackLayer } from '../layers/feedback/index.js';
 import type { DecisionOutput } from '../layers/decision/types/decisionTypes.js';
 import type { ReshufflePlan } from '../layers/task/types/scheduleTypes.js';
 
@@ -40,6 +41,17 @@ router.post('/analyze', async (req, res) => {
       }
     );
 
+    // Trigger Feedback Layer (reflection generation)
+    const feedbackLayer = getFeedbackLayer();
+    const payloadTitle = actionPayload?.title;
+    const feedbackResult = feedbackLayer.processReflection({
+      decision: result.decision.decision,
+      confidence: result.decision.confidence,
+      missingInfo: result.intent?.missingInfo || [],
+      actionType: result.decision.actionPlan?.actionType,
+      taskTitle: typeof payloadTitle === 'string' ? payloadTitle : undefined
+    });
+
     res.json({
       input: result.input,
       intent: result.intent,
@@ -48,7 +60,8 @@ router.post('/analyze', async (req, res) => {
       state: processResult.state,
       uiInstructions: {
         ...processResult.uiInstructions,
-        automation: automationResult
+        automation: automationResult,
+        feedback: feedbackResult.uiInstructions
       },
       timestamp: result.timestamp
     });
