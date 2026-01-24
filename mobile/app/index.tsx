@@ -4,32 +4,45 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
   useColorScheme,
-  ScrollView,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
+  RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
-import { apiClient, AnalyzeResponse } from '@/api/MAApiClient';
+import apiClient, { AnalyzeResponse, FeedbackResponse } from '@/api/MAApiClient';
 import VoiceInput from '@/components/VoiceInput';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export default function InputScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-  
+  const queryClient = useQueryClient();
+
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [response, setResponse] = useState<AnalyzeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showVoice, setShowVoice] = useState(false);
 
+  // Fetch feedback feed for display
+  const { data: feedbackData, refetch: refetchFeedback, isRefetching } = useQuery<FeedbackResponse>({
+    queryKey: ['feedback'],
+    queryFn: async () => {
+      if (!apiClient.isConfigured()) {
+        throw new Error('Server not configured');
+      }
+      return apiClient.getFeedback(5);
+    },
+    enabled: apiClient.isConfigured(),
+    refetchInterval: 10000,
+  });
+
   const handleSend = useCallback(async () => {
     if (!inputText.trim()) return;
 
-    // Check if server is configured
     if (!apiClient.isConfigured()) {
       setError('יש להגדיר כתובת שרת בהגדרות תחילה');
       return;
@@ -44,6 +57,8 @@ export default function InputScreen() {
       setResponse(result);
       if (result.success) {
         setInputText('');
+        // Refresh feedback after successful analysis
+        queryClient.invalidateQueries({ queryKey: ['feedback'] });
       }
     } catch (err) {
       setError('שגיאה בשליחה. בדוק את החיבור לשרת.');
@@ -51,62 +66,72 @@ export default function InputScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [inputText]);
+  }, [inputText, queryClient]);
 
   const handleVoiceResult = useCallback((text: string) => {
     setInputText(text);
     setShowVoice(false);
   }, []);
 
+  const handleRefresh = useCallback(async () => {
+    await refetchFeedback();
+  }, [refetchFeedback]);
+
   const styles = StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: colors.background,
     },
-    content: {
-      flex: 1,
+    scrollContent: {
       padding: 16,
+      paddingBottom: 100,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 16,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: colors.text,
+      marginLeft: 8,
     },
     inputContainer: {
       flexDirection: 'row',
       alignItems: 'flex-end',
-      gap: 8,
-      marginBottom: 16,
-    },
-    textInput: {
-      flex: 1,
-      minHeight: 48,
-      maxHeight: 120,
       backgroundColor: colors.card,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      borderRadius: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    input: {
+      flex: 1,
+      minHeight: 44,
+      maxHeight: 120,
       fontSize: 16,
       color: colors.text,
       textAlign: 'right',
-      borderWidth: 1,
-      borderColor: colors.border,
+      writingDirection: 'rtl',
+      paddingHorizontal: 8,
     },
-    button: {
-      width: 48,
-      height: 48,
-      borderRadius: 24,
+    iconButton: {
+      padding: 8,
+    },
+    sendButton: {
       backgroundColor: colors.primary,
-      justifyContent: 'center',
-      alignItems: 'center',
+      borderRadius: 20,
+      padding: 10,
+      marginLeft: 8,
     },
-    buttonDisabled: {
-      opacity: 0.5,
+    sendButtonDisabled: {
+      backgroundColor: colors.border,
     },
-    micButton: {
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    responseContainer: {
-      flex: 1,
-    },
-    card: {
+    resultCard: {
       backgroundColor: colors.card,
       borderRadius: 12,
       padding: 16,
@@ -114,141 +139,313 @@ export default function InputScreen() {
       borderWidth: 1,
       borderColor: colors.border,
     },
-    cardTitle: {
-      fontSize: 14,
+    resultTitle: {
+      fontSize: 16,
       fontWeight: '600',
-      color: colors.textSecondary,
+      color: colors.text,
       marginBottom: 8,
       textAlign: 'right',
     },
-    cardText: {
-      fontSize: 16,
-      color: colors.text,
+    resultRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 4,
+    },
+    resultLabel: {
+      fontSize: 14,
+      color: colors.textSecondary,
       textAlign: 'right',
-      lineHeight: 24,
+    },
+    resultValue: {
+      fontSize: 14,
+      color: colors.text,
+      fontWeight: '500',
+      textAlign: 'left',
+    },
+    badge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+    },
+    badgeExecute: {
+      backgroundColor: '#22c55e20',
+    },
+    badgeAsk: {
+      backgroundColor: '#3b82f620',
+    },
+    badgeReflect: {
+      backgroundColor: '#f59e0b20',
+    },
+    badgeText: {
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    badgeTextExecute: {
+      color: '#22c55e',
+    },
+    badgeTextAsk: {
+      color: '#3b82f6',
+    },
+    badgeTextReflect: {
+      color: '#f59e0b',
     },
     errorText: {
       color: colors.error,
       textAlign: 'center',
-      padding: 16,
+      marginBottom: 12,
     },
-    questionCard: {
-      backgroundColor: colors.primary + '15',
-      borderColor: colors.primary,
+    feedbackSection: {
+      marginTop: 8,
     },
-    questionText: {
-      fontSize: 18,
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 12,
+      textAlign: 'right',
+    },
+    feedbackItem: {
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRightWidth: 4,
+    },
+    feedbackItemHigh: {
+      borderRightColor: colors.error,
+    },
+    feedbackItemMedium: {
+      borderRightColor: '#f59e0b',
+    },
+    feedbackItemLow: {
+      borderRightColor: colors.border,
+    },
+    feedbackTitle: {
+      fontSize: 14,
       fontWeight: '600',
       color: colors.text,
       textAlign: 'right',
+      marginBottom: 4,
     },
-    placeholder: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
+    feedbackBody: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      textAlign: 'right',
     },
-    placeholderText: {
-      fontSize: 16,
-      color: colors.textTertiary,
+    microStep: {
+      backgroundColor: colors.background,
+      borderRadius: 8,
+      padding: 8,
+      marginTop: 8,
+    },
+    microStepText: {
+      fontSize: 13,
+      color: colors.text,
+      textAlign: 'right',
+    },
+    emptyState: {
       textAlign: 'center',
+      color: colors.textSecondary,
+      paddingVertical: 20,
+    },
+    questionCard: {
+      backgroundColor: colors.primary + '15',
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    questionText: {
+      fontSize: 15,
+      color: colors.text,
+      textAlign: 'right',
+      marginBottom: 12,
+    },
+    reflectionCard: {
+      backgroundColor: '#f59e0b15',
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: '#f59e0b',
+    },
+    reflectionText: {
+      fontSize: 14,
+      color: colors.text,
+      textAlign: 'right',
     },
   });
 
+  const getDecisionBadge = (decision: string) => {
+    switch (decision) {
+      case 'execute':
+        return { style: styles.badgeExecute, textStyle: styles.badgeTextExecute, label: 'ביצוע' };
+      case 'ask':
+        return { style: styles.badgeAsk, textStyle: styles.badgeTextAsk, label: 'שאלה' };
+      case 'reflect':
+        return { style: styles.badgeReflect, textStyle: styles.badgeTextReflect, label: 'שיקוף' };
+      default:
+        return { style: styles.badgeReflect, textStyle: styles.badgeTextReflect, label: decision };
+    }
+  };
+
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={100}
-    >
-      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
-        {response ? (
-          <View style={styles.responseContainer}>
-            {response.decision?.question && (
-              <View style={[styles.card, styles.questionCard]}>
-                <Text style={styles.cardTitle}>שאלה מ-MA</Text>
-                <Text style={styles.questionText}>{response.decision.question}</Text>
-              </View>
-            )}
+    <View style={styles.container}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={handleRefresh} />
+        }
+      >
+        <View style={styles.header}>
+          <Ionicons name="chatbubble-ellipses" size={24} color={colors.primary} />
+          <Text style={styles.title}>MA - המפרקט</Text>
+        </View>
 
-            {response.analysis && (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>ניתוח</Text>
-                <Text style={styles.cardText}>
-                  כוונה: {response.analysis.primaryIntent}
-                </Text>
-                <Text style={styles.cardText}>
-                  סוג: {response.analysis.inputType}
-                </Text>
-                <Text style={styles.cardText}>
-                  ביטחון: {Math.round(response.analysis.confidence * 100)}%
-                </Text>
-              </View>
-            )}
-
-            {response.decision && (
-              <View style={styles.card}>
-                <Text style={styles.cardTitle}>החלטה</Text>
-                <Text style={styles.cardText}>
-                  פעולה: {response.decision.action}
-                </Text>
-                <Text style={styles.cardText}>
-                  סיבה: {response.decision.reason}
-                </Text>
-              </View>
-            )}
-          </View>
-        ) : (
-          <View style={styles.placeholder}>
-            <Ionicons name="chatbubble-ellipses-outline" size={64} color={colors.textTertiary} />
-            <Text style={styles.placeholderText}>
-              הקלד או הקלט משהו...{'\n'}
-              למשל: "קבע לי פגישה מחר ב-2"
-            </Text>
-          </View>
-        )}
-
-        {error && <Text style={styles.errorText}>{error}</Text>}
-      </ScrollView>
-
-      <View style={{ padding: 16, backgroundColor: colors.background }}>
+        {/* Input Section */}
         <View style={styles.inputContainer}>
           <TouchableOpacity
-            style={styles.button}
-            onPress={handleSend}
-            disabled={isLoading || !inputText.trim()}
+            style={styles.iconButton}
+            onPress={() => setShowVoice(true)}
           >
-            {isLoading ? (
-              <ActivityIndicator color={colors.primaryText} />
-            ) : (
-              <Ionicons name="send" size={20} color={colors.primaryText} />
-            )}
+            <Ionicons name="mic" size={24} color={colors.primary} />
           </TouchableOpacity>
 
           <TextInput
-            style={styles.textInput}
+            style={styles.input}
             value={inputText}
             onChangeText={setInputText}
-            placeholder="הקלד משהו..."
-            placeholderTextColor={colors.textTertiary}
+            placeholder="מה אתה רוצה לעשות?"
+            placeholderTextColor={colors.textSecondary}
             multiline
             textAlignVertical="top"
           />
 
           <TouchableOpacity
-            style={[styles.button, styles.micButton]}
-            onPress={() => setShowVoice(true)}
+            style={[
+              styles.sendButton,
+              (!inputText.trim() || isLoading) && styles.sendButtonDisabled,
+            ]}
+            onPress={handleSend}
+            disabled={!inputText.trim() || isLoading}
           >
-            <Ionicons name="mic" size={24} color={colors.primary} />
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="send" size={20} color="#fff" />
+            )}
           </TouchableOpacity>
         </View>
-      </View>
 
-      {showVoice && (
-        <VoiceInput
-          onResult={handleVoiceResult}
-          onClose={() => setShowVoice(false)}
-        />
-      )}
-    </KeyboardAvoidingView>
+        {error && <Text style={styles.errorText}>{error}</Text>}
+
+        {/* Analysis Results */}
+        {response?.success && response.intent && (
+          <View style={styles.resultCard}>
+            <Text style={styles.resultTitle}>תוצאות ניתוח</Text>
+
+            <View style={styles.resultRow}>
+              <View style={[styles.badge, getDecisionBadge(response.decision?.decision || '').style]}>
+                <Text style={[styles.badgeText, getDecisionBadge(response.decision?.decision || '').textStyle]}>
+                  {getDecisionBadge(response.decision?.decision || '').label}
+                </Text>
+              </View>
+              <Text style={styles.resultLabel}>החלטה</Text>
+            </View>
+
+            <View style={styles.resultRow}>
+              <Text style={styles.resultValue}>{response.intent.primaryIntent}</Text>
+              <Text style={styles.resultLabel}>כוונה</Text>
+            </View>
+
+            <View style={styles.resultRow}>
+              <Text style={styles.resultValue}>{Math.round(response.intent.confidence * 100)}%</Text>
+              <Text style={styles.resultLabel}>ביטחון</Text>
+            </View>
+
+            {response.intent.entities.title && (
+              <View style={styles.resultRow}>
+                <Text style={styles.resultValue}>{response.intent.entities.title}</Text>
+                <Text style={styles.resultLabel}>כותרת</Text>
+              </View>
+            )}
+
+            {response.intent.entities.time && (
+              <View style={styles.resultRow}>
+                <Text style={styles.resultValue}>{response.intent.entities.time}</Text>
+                <Text style={styles.resultLabel}>שעה</Text>
+              </View>
+            )}
+
+            {response.intent.entities.duration && (
+              <View style={styles.resultRow}>
+                <Text style={styles.resultValue}>{response.intent.entities.duration} דקות</Text>
+                <Text style={styles.resultLabel}>משך</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Question from MA */}
+        {response?.decision?.question?.shouldAsk && (
+          <View style={styles.questionCard}>
+            <Text style={styles.resultTitle}>שאלה מ-MA</Text>
+            <Text style={styles.questionText}>{response.decision.question.text}</Text>
+          </View>
+        )}
+
+        {/* Reflection from MA */}
+        {response?.decision?.reflection?.shouldReflect && (
+          <View style={styles.reflectionCard}>
+            <Text style={styles.resultTitle}>שיקוף</Text>
+            <Text style={styles.reflectionText}>{response.decision.reflection.text}</Text>
+            {response.decision.reflection.microStep && (
+              <View style={styles.microStep}>
+                <Text style={styles.microStepText}>
+                  צעד הבא: {response.decision.reflection.microStep}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Recent Feedback */}
+        {feedbackData && feedbackData.feedbackFeed.length > 0 && (
+          <View style={styles.feedbackSection}>
+            <Text style={styles.sectionTitle}>עדכונים אחרונים</Text>
+            {feedbackData.feedbackFeed.slice(0, 3).map((item) => (
+              <View
+                key={item.id}
+                style={[
+                  styles.feedbackItem,
+                  item.ui.priority === 'high' && styles.feedbackItemHigh,
+                  item.ui.priority === 'medium' && styles.feedbackItemMedium,
+                  item.ui.priority === 'low' && styles.feedbackItemLow,
+                ]}
+              >
+                <Text style={styles.feedbackTitle}>{item.titleHebrew}</Text>
+                <Text style={styles.feedbackBody}>{item.bodyHebrew}</Text>
+                {item.microStepHebrew && (
+                  <View style={styles.microStep}>
+                    <Text style={styles.microStepText}>צעד הבא: {item.microStepHebrew}</Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+
+      <VoiceInput
+        visible={showVoice}
+        onClose={() => setShowVoice(false)}
+        onResult={handleVoiceResult}
+      />
+    </View>
   );
 }

@@ -1,50 +1,158 @@
-// MA API Client for connecting to the server
-// Handles all communication with the MA backend
+// MA Server API Client - Full implementation for mobile app
 
-export interface AnalyzeRequest {
-  text: string;
+// Types matching server response structures
+
+export interface IntentResult {
+  primaryIntent: string;
+  entities: {
+    time?: string;
+    date?: string;
+    duration?: number;
+    title?: string;
+    [key: string]: unknown;
+  };
+  confidence: number;
+  commitmentLevel: string;
+  cognitiveLoad: string;
+  missingInfo: string[];
+  explainability: {
+    rulesTriggered: string[];
+    confidenceBreakdown: Record<string, number>;
+    hebrewExplanation: string;
+  };
+}
+
+export interface DecisionResult {
+  decision: 'execute' | 'ask' | 'reflect' | 'stop';
+  reason: string;
+  confidence: number;
+  actionPlan?: {
+    actionType: string;
+    payload: Record<string, unknown>;
+  };
+  question?: {
+    shouldAsk: boolean;
+    questionId: string;
+    text: string;
+    expectedAnswerType: 'choice' | 'free_text' | 'confirm';
+    options: string[];
+  };
+  reflection?: {
+    shouldReflect: boolean;
+    text: string;
+    microStep: string;
+  };
 }
 
 export interface AnalyzeResponse {
   success: boolean;
-  analysis?: {
-    inputType: string;
-    primaryIntent: string;
-    entities: Record<string, unknown>;
-    confidence: number;
+  input?: {
+    original: string;
+    normalized: string;
   };
-  decision?: {
-    action: 'execute' | 'ask' | 'reflect' | 'stop';
-    reason: string;
-    question?: string;
-    questionId?: string;
-  };
+  intent?: IntentResult;
+  decision?: DecisionResult;
+  state?: TaskState;
+  uiInstructions?: UIInstructions;
+  timestamp?: string;
   error?: string;
 }
 
-export interface AnswerRequest {
-  questionId: string;
-  answer: string;
+export interface TaskState {
+  tasks: Task[];
+  events: Event[];
+  scheduleBlocks: ScheduleBlock[];
+  notes: Note[];
+  lastQuestion: Question | null;
 }
 
-export interface AnswerResponse {
-  success: boolean;
+export interface Task {
+  id: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'not_completed' | 'archived';
+  priority: 'low' | 'medium' | 'high';
+  estimatedDuration?: number;
+  scheduledStart?: string;
+  scheduledEnd?: string;
+  mustLock: boolean;
+}
+
+export interface Event {
+  id: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  type: 'external' | 'internal';
+}
+
+export interface ScheduleBlock {
+  id: string;
+  entityType: 'task' | 'event';
+  entityId: string;
+  start: string;
+  end: string;
+  locked: boolean;
+}
+
+export interface Note {
+  id: string;
+  content: string;
+  type: 'journal' | 'thought' | 'reminder';
+  createdAt: string;
+}
+
+export interface Question {
+  id: string;
+  text: string;
+  expectedAnswerType: 'choice' | 'free_text' | 'confirm';
+  options: string[];
+}
+
+export interface UIInstructions {
+  showQuestionModal: boolean;
+  showReflectionCard: boolean;
+  refreshTimeline: boolean;
+  refreshTaskList: boolean;
+  planOptions: PlanOption[] | null;
   message?: string;
-  error?: string;
+  messageType?: 'info' | 'success' | 'warning' | 'error';
 }
 
-export interface FeedbackData {
-  feed: FeedbackMessage[];
-  pendingCheckIns: CheckInRequest[];
-  stats: FeedbackStats;
+export interface PlanOption {
+  planId: 'A' | 'B';
+  titleHebrew: string;
+  summaryHebrew: string;
+  changes: PlanChange[];
+}
+
+export interface PlanChange {
+  entityType: 'task' | 'event';
+  entityId: string;
+  change: 'shorten' | 'move' | 'cancel';
+  details: {
+    newDuration?: number;
+    newStartTime?: string;
+    reason?: string;
+  };
 }
 
 export interface FeedbackMessage {
   id: string;
   tsIso: string;
-  type: 'reflection' | 'post_action' | 'daily_review' | 'micro_step' | 'overload_warning';
-  priority: 'low' | 'medium' | 'high';
-  textHebrew: string;
+  type: 'reflection' | 'post_action' | 'daily_review' | 'system';
+  tone: 'neutral' | 'gentle' | 'direct';
+  titleHebrew: string;
+  bodyHebrew: string;
+  microStepHebrew: string;
+  related: {
+    layer: string;
+    entityType: string;
+    entityId: string | null;
+  };
+  ui: {
+    showAs: 'card' | 'toast' | 'modal';
+    priority: 'low' | 'medium' | 'high';
+  };
 }
 
 export interface CheckInRequest {
@@ -63,13 +171,41 @@ export interface FeedbackStats {
   weeklyAvgCompletion: number;
 }
 
+export interface FeedbackContext {
+  currentStressLevel: 'low' | 'medium' | 'high';
+  currentTone: 'neutral' | 'gentle' | 'direct';
+}
+
+export interface FeedbackResponse {
+  feedbackFeed: FeedbackMessage[];
+  pendingCheckIn: CheckInRequest | null;
+  stats: FeedbackStats;
+  context: FeedbackContext;
+  timestamp: string;
+}
+
+export interface DailyReviewData {
+  dateIso: string;
+  completed: number;
+  total: number;
+  topBlocker?: string;
+  topMust?: string;
+  microStep: string;
+}
+
+export interface PendingPlanProposal {
+  id: string;
+  createdAtIso: string;
+  reason: 'reshuffle';
+  plans: PlanOption[];
+  expiresAtIso: string;
+}
+
 class MAApiClient {
   private baseUrl: string;
   private static readonly STORAGE_KEY = 'ma_server_url';
 
   constructor(baseUrl?: string) {
-    // Default to empty - user must configure in Settings
-    // In production, this would be loaded from AsyncStorage on init
     this.baseUrl = baseUrl || '';
   }
 
@@ -86,55 +222,149 @@ class MAApiClient {
   }
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    if (!this.baseUrl) {
+      throw new Error('Server URL not configured');
+    }
+
     const url = `${this.baseUrl}${endpoint}`;
-    
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // === Core Analysis ===
+
+  async analyze(text: string, source: string = 'mobile'): Promise<AnalyzeResponse> {
     try {
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options?.headers,
-        },
+      const result = await this.request<AnalyzeResponse>('/api/analyze', {
+        method: 'POST',
+        body: JSON.stringify({ text, source }),
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      return await response.json();
+      return { success: true, ...result };
     } catch (error) {
-      console.error(`API request failed: ${endpoint}`, error);
-      throw error;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
     }
   }
 
-  async analyze(text: string): Promise<AnalyzeResponse> {
-    return this.request<AnalyzeResponse>('/api/analyze', {
+  async answer(answer: string, questionId: string): Promise<AnalyzeResponse> {
+    try {
+      const result = await this.request<AnalyzeResponse>('/api/answer', {
+        method: 'POST',
+        body: JSON.stringify({ answer, questionId }),
+      });
+      return { success: true, ...result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  // === Task Actions ===
+
+  async performAction(action: string, id?: string, entityType?: string, value?: unknown): Promise<AnalyzeResponse> {
+    try {
+      const result = await this.request<AnalyzeResponse>('/api/action', {
+        method: 'POST',
+        body: JSON.stringify({ action, id, entityType, value }),
+      });
+      return { success: true, ...result };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  async markDone(taskId: string): Promise<AnalyzeResponse> {
+    return this.performAction('mark_done', taskId);
+  }
+
+  async cancelTask(taskId: string): Promise<AnalyzeResponse> {
+    return this.performAction('cancel', taskId, 'task');
+  }
+
+  async toggleMustLock(taskId: string): Promise<AnalyzeResponse> {
+    return this.performAction('toggle_must_lock', taskId);
+  }
+
+  async confirmPlan(planId: 'A' | 'B', plans: PlanOption[]): Promise<AnalyzeResponse> {
+    return this.performAction('confirm_plan', undefined, undefined, planId);
+  }
+
+  // === State ===
+
+  async getState(): Promise<{ state: TaskState; timestamp: string }> {
+    return this.request('/api/state');
+  }
+
+  // === Feedback Layer ===
+
+  async getFeedback(limit: number = 20): Promise<FeedbackResponse> {
+    return this.request(`/api/feedback?limit=${limit}`);
+  }
+
+  async respondToCheckIn(response: string, checkInId: string): Promise<{
+    success: boolean;
+    feedbackMessage?: FeedbackMessage;
+    uiInstructions?: unknown;
+    signalsForLearning?: unknown;
+  }> {
+    return this.request('/api/feedback/checkin/respond', {
       method: 'POST',
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ response, checkInId }),
     });
   }
 
-  async answer(questionId: string, answer: string): Promise<AnswerResponse> {
-    return this.request<AnswerResponse>('/api/answer', {
+  async requestDailyReview(): Promise<{
+    success: boolean;
+    feedbackMessage?: FeedbackMessage;
+    uiInstructions?: unknown;
+  }> {
+    return this.request('/api/feedback/daily-review/request', {
       method: 'POST',
-      body: JSON.stringify({ questionId, answer }),
     });
   }
 
-  async getFeedback(): Promise<FeedbackData> {
-    return this.request<FeedbackData>('/api/feedback');
-  }
-
-  async respondToCheckIn(checkInId: string, response: string): Promise<{ success: boolean }> {
-    return this.request<{ success: boolean }>('/api/feedback/checkin/respond', {
+  async sendReflection(decision: string, confidence?: number, missingInfo?: string[], actionType?: string, taskTitle?: string): Promise<{
+    success: boolean;
+    feedbackMessage?: FeedbackMessage;
+    uiInstructions?: unknown;
+  }> {
+    return this.request('/api/feedback/reflection', {
       method: 'POST',
-      body: JSON.stringify({ checkInId, response }),
+      body: JSON.stringify({ decision, confidence, missingInfo, actionType, taskTitle }),
     });
   }
 
-  async getState(): Promise<unknown> {
-    return this.request<unknown>('/api/state');
+  async getFeedbackStats(): Promise<{ stats: FeedbackStats; timestamp: string }> {
+    return this.request('/api/feedback/stats');
+  }
+
+  // === Health Check ===
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      const result = await this.request<{ status: string }>('/api/health');
+      return result.status === 'ok';
+    } catch {
+      return false;
+    }
   }
 }
 
