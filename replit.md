@@ -94,7 +94,26 @@ A modular architecture for intelligent task management:
    - **Connectors**:
      - MockConnector: Simulates success/failure for testing
      - GoogleCalendarConnector: Scaffold with OAuth placeholder (TODO: implement OAuth)
-7.  **Feedback Layer**: Placeholder for day reviews.
+7.  **Feedback & Review Layer** (`/feedback`): FULL IMPLEMENTATION - 16 tests passing
+   - **FeedbackReviewLayer**: Main orchestrator with processReflection, processPostAction, processAutomationResult methods
+   - **Directory Structure**:
+     - `types/` - FeedbackMessage, CheckInRequest, FeedbackStats, DailyReviewData
+     - `store/` - FeedbackStore (singleton for feedbackFeed, pendingCheckIns, stats, dailyReviewHistory)
+     - `generators/` - reflectionGenerator, postActionGenerator, dailyReviewGenerator, microStepGenerator
+     - `analyzers/` - gapAnalyzer, successFailureAnalyzer, overloadAnalyzer
+     - `policies/` - templates (Hebrew), thresholds, triggers, tonePolicy
+     - `__tests__/` - 16 unit tests (all passing)
+   - **Features**:
+     - Reflection generation after decisions (execute/ask/reflect/stop)
+     - Post-action feedback with gap analysis (planned vs actual)
+     - Daily review blocked when stress level is high
+     - 3-tier tone system: neutral/gentle/direct based on stress
+     - Check-in system with 24-hour cooldowns
+     - Micro-step suggestions for overloaded/stuck users
+     - Overload detection from cognitive load + cancellations + failed jobs
+   - **Check-In Types**: duration_mismatch, wrong_intent, stress_signal, automation_failed
+   - **UI Components**: FeedbackFeed.tsx, DailyReviewCard.tsx, CheckInModal.tsx
+   - **Hebrew Templates**: All feedback messages in Hebrew with variable substitution
 
 **Constraint Types Supported**: deadline, allowed_window, forbidden_window, energy_profile, reduced_load_day.
 
@@ -115,6 +134,9 @@ A modular architecture for intelligent task management:
 - `GET /api/automation/audit` - Get audit log entries
 - `POST /api/automation/retry/:jobId` - Retry a failed job
 - `GET /api/automation/state` - Get full automation state
+- `GET /api/feedback` - Get feedback feed and pending check-ins
+- `POST /api/feedback/checkin/respond` - Respond to a check-in question
+- `POST /api/feedback/daily-review/request` - Request daily review generation
 
 ### AI Lab Frontend (`/ai-lab`)
 Visual interface for testing the full AI flow:
@@ -128,14 +150,18 @@ Visual interface for testing the full AI flow:
 - **LearningPanel**: Shows active rules, pending proposals, recent decisions with toggle controls
 - **IntegrationsPanel**: Shows integration statuses (Mock, Google Calendar) with connect/disconnect buttons
 - **AutomationLogPanel**: Shows audit log entries and job statuses with retry functionality
+- **FeedbackFeed**: Shows feedback messages with priority indicators
+- **DailyReviewCard**: Shows daily completion stats, blockers, and micro-steps
+- **CheckInModal**: Modal for responding to check-in questions
 
 ### Test Coverage
-- **Total**: 79 tests passing
+- **Total**: 95 tests passing
 - Layer 2 (Intent): 19 tests
 - Layer 3 (Decision): 12 tests
 - Layer 4 (Task): 12 tests
 - Layer 5 (Learning): 20 tests
 - Layer 6 (Automation): 16 tests
+- Layer 7 (Feedback): 16 tests
 
 ### Rule Engine / Voice-to-Task Engine
 Determines input as `task_or_event` or `journal_entry`. Extracts details for tasks (title, dates, times, location, etc.) and journals (mood, intensity, tags). Features smart title generation, phone call location inference, and identifies actionable tasks from journal entries.

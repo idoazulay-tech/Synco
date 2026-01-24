@@ -6,7 +6,7 @@ import { DecisionEngine, type DecisionOutput } from './decision';
 import { TaskEngine, decomposeTask, estimateTaskDuration, manageDayPlan } from './task';
 import { LearningEngine, updateTimeStats, getPersonalTimeStats } from './learning';
 import { AutomationLayer } from './automation';
-import { FeedbackLayer } from './feedback';
+import { FeedbackReviewLayer, getFeedbackLayer } from './feedback';
 import type { IntentAnalysis as LegacyIntentAnalysis, DecisionResult } from './types';
 import type { IntentAnalysis as ModularIntentAnalysis } from './intent/types/intentTypes';
 
@@ -39,7 +39,7 @@ export class AIOrchestrator {
   private taskEngine: TaskEngine;
   private learningEngine: LearningEngine;
   private automationLayer: AutomationLayer;
-  private feedbackLayer: FeedbackLayer;
+  private feedbackLayer: FeedbackReviewLayer;
 
   constructor() {
     this.inputLayer = new InputLayer();
@@ -48,7 +48,7 @@ export class AIOrchestrator {
     this.taskEngine = new TaskEngine();
     this.learningEngine = new LearningEngine();
     this.automationLayer = new AutomationLayer();
-    this.feedbackLayer = new FeedbackLayer();
+    this.feedbackLayer = getFeedbackLayer();
   }
 
   async processInput(text: string, source: 'voice' | 'text' | 'quick_input' = 'text') {
