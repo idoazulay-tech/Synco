@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Calendar, CalendarDays, Archive, Settings, Keyboard, Mic } from 'lucide-react';
+import { Home, Calendar, CalendarDays, MessageSquare, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { NotificationCenter } from '@/components/notifications/NotificationCenter';
@@ -10,7 +10,7 @@ const navItems = [
   { icon: Home, label: 'בית', path: '/' },
   { icon: Calendar, label: 'יום', path: '/day' },
   { icon: CalendarDays, label: 'חודש', path: '/month' },
-  { icon: Archive, label: 'ארון', path: '/standby' },
+  { icon: MessageSquare, label: 'ארגון', path: '/shikul' },
   { icon: Settings, label: 'הגדרות', path: '/settings' },
 ];
 
