@@ -37,25 +37,11 @@ export function MefraketButton({ className }: MefraketButtonProps) {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             className={cn(
-              "fixed bottom-[68px] right-2 z-50",
+              "fixed bottom-[68px] right-0 z-50",
               className
             )}
           >
-            <div className="flex items-center gap-1 p-1 rounded-full bg-background/80 backdrop-blur-lg shadow-lg border">
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Button
-                  size="lg"
-                  onClick={handleTextClick}
-                  className="rounded-full h-12 w-12 bg-blue-500 hover:bg-blue-600 text-white shadow-lg"
-                  data-testid="button-mefraket-text"
-                >
-                  <Keyboard className="h-5 w-5" />
-                </Button>
-              </motion.div>
-              
+            <div className="flex flex-col items-end gap-1">
               <motion.div
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -67,6 +53,20 @@ export function MefraketButton({ className }: MefraketButtonProps) {
                   data-testid="button-mefraket-voice"
                 >
                   <Mic className="h-5 w-5" />
+                </Button>
+              </motion.div>
+              
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button
+                  size="lg"
+                  onClick={handleTextClick}
+                  className="rounded-full h-12 w-12 bg-blue-500 hover:bg-blue-600 text-white shadow-lg"
+                  data-testid="button-mefraket-text"
+                >
+                  <Keyboard className="h-5 w-5" />
                 </Button>
               </motion.div>
             </div>
