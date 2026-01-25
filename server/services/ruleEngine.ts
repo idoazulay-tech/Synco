@@ -77,7 +77,7 @@ export interface InterpretResult {
   conflict?: ConflictInfo;
 }
 
-const TIME_SIGNALS = ['בשעה', 'שעה', 'בשעות', 'משעה', 'עד שעה', 'לפני', 'אחרי', 'בסביבות', 'בערך', 'לקראת', 'בבוקר', 'בצהריים', 'אחהצ', 'אחר הצהריים', 'בערב', 'בלילה', 'לפנות בוקר', 'עד הערב', 'בסוף היום', 'תחילת היום'];
+const TIME_SIGNALS = ['עכשיו', 'בשעה', 'שעה', 'בשעות', 'משעה', 'עד שעה', 'עד', 'לפני', 'אחרי', 'בסביבות', 'בערך', 'לקראת', 'בבוקר', 'בצהריים', 'אחהצ', 'אחר הצהריים', 'בערב', 'בלילה', 'לפנות בוקר', 'עד הערב', 'בסוף היום', 'תחילת היום'];
 
 const DATE_SIGNALS = ['היום', 'מחר', 'מחרתיים', 'בעוד ימים', 'בעוד שבוע', 'בעוד חודש', 'השבוע', 'שבוע הבא', 'בשבוע הבא', 'החודש', 'חודש הבא', 'בימים הקרובים', 'בהמשך היום', 'בסופ"ש', 'בסוף שבוע', 'סוף השבוע', 'מחר בבוקר', 'מחר בערב', 'היום בערב', 'היום בבוקר', 'בתאריך'];
 
@@ -181,7 +181,13 @@ function extractDate(text: string): { date: string | null; time: string | null; 
   let time: string | null = null;
   let end_time: string | null = null;
 
-  if (/היום/.test(text)) {
+  // Handle "עכשיו" as current time - sets both date and time
+  if (/עכשיו/.test(text)) {
+    date = now;
+    time = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  }
+
+  if (/היום/.test(text) && !date) {
     date = now;
   } else if (/מחרתיים/.test(text)) {
     date = new Date(now);
@@ -216,9 +222,35 @@ function extractDate(text: string): { date: string | null; time: string | null; 
     }
   }
 
-  // Check for time range patterns first: "מ12 עד 15", "מהשעה 12 עד 15", "בין 12 ל15"
+  // Check for "עכשיו עד XX:XX" pattern - start from now until end time
+  const nowUntilMatch = text.match(/עכשיו\s+עד\s+(\d{1,2})(?::(\d{2}))?/);
+  if (nowUntilMatch && time) {
+    let endHours = parseInt(nowUntilMatch[1]);
+    const endMinutes = nowUntilMatch[2] ? parseInt(nowUntilMatch[2]) : 0;
+    
+    // If end time is 00:00 or less than current hour, it means next day (or later today)
+    const startHourNum = now.getHours();
+    if (endHours === 0 || endHours < startHourNum) {
+      // 00:00 means midnight - next occurrence
+      // Keep as is, the end time is for today if 00:00
+    }
+    
+    end_time = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+  }
+  
+  // Check for standalone "עד XX:XX" pattern (without עכשיו before it)
+  if (!end_time) {
+    const untilMatch = text.match(/עד\s+(\d{1,2})(?::(\d{2}))?(?!\s*(?:ימים?|שבועות?|חודשים?))/);
+    if (untilMatch) {
+      let endHours = parseInt(untilMatch[1]);
+      const endMinutes = untilMatch[2] ? parseInt(untilMatch[2]) : 0;
+      end_time = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+    }
+  }
+
+  // Check for time range patterns: "מ12 עד 15", "מהשעה 12 עד 15", "בין 12 ל15"
   const timeRangeMatch = text.match(/(?:מ-?|מהשעה\s*|בין\s*)(\d{1,2})(?::(\d{2}))?\s*(?:עד|ל-?|ו-?)\s*(\d{1,2})(?::(\d{2}))?/);
-  if (timeRangeMatch) {
+  if (timeRangeMatch && !time) {
     let startHours = parseInt(timeRangeMatch[1]);
     const startMinutes = timeRangeMatch[2] ? parseInt(timeRangeMatch[2]) : 0;
     let endHours = parseInt(timeRangeMatch[3]);
@@ -232,7 +264,7 @@ function extractDate(text: string): { date: string | null; time: string | null; 
     
     time = `${startHours.toString().padStart(2, '0')}:${startMinutes.toString().padStart(2, '0')}`;
     end_time = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
-  } else {
+  } else if (!time) {
     // Single time extraction
     const timeMatch = text.match(/(?:בשעה\s*|ב-?)(\d{1,2})(?::(\d{2}))?/);
     if (timeMatch) {
@@ -407,6 +439,8 @@ function cleanTitle(text: string, taskType: TaskType, participants: string[], al
 
   title = title
     .replace(/\s*(מחר|מחרתיים|היום)\s*/g, ' ')
+    .replace(/\s*עכשיו\s*/g, ' ')
+    .replace(/\s*עד\s*\d{1,2}(:\d{2})?\s*/g, ' ')
     .replace(/\s*בשעה\s*\d{1,2}(:\d{2})?\s*/g, ' ')
     .replace(/\s*ב-?\d{1,2}(:\d{2})?\s*/g, ' ')
     .replace(/\s*ב(אחת|שתיים|שלוש|ארבע|חמש|שש|שבע|שמונה|תשע|עשר|אחת עשרה|שתים עשרה)\s*/g, ' ')
