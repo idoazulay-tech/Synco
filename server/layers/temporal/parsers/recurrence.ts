@@ -27,30 +27,6 @@ export function parseRecurrence(text: string, now: Date): Recurrence | null {
   const normalized = normalizeTokens(tokens);
   const joined = normalized.join(' ');
   
-  for (const [pattern, info] of Object.entries(RECURRENCE_PATTERNS_HE)) {
-    if (text.includes(pattern)) {
-      const recurrencePattern: RecurrencePattern = {
-        freq: info.freq as 'daily' | 'weekly' | 'monthly',
-        interval: info.interval
-      };
-      
-      if (info.freq === 'weekly') {
-        const weekdays = findWeekdayInText(text);
-        if (weekdays.length > 0) {
-          recurrencePattern.byDay = weekdays;
-        }
-      }
-      
-      return {
-        type: 'recurrence',
-        pattern: recurrencePattern,
-        confidence: 0.9,
-        sourceText: text,
-        reason: `pattern_${pattern}`
-      };
-    }
-  }
-  
   const everyWeekdayPattern = /כל\s*(יום\s*)?(ראשון|שני|שלישי|רביעי|חמישי|שישי|שבת)/;
   const everyWeekdayMatch = text.match(everyWeekdayPattern);
   
@@ -93,7 +69,7 @@ export function parseRecurrence(text: string, now: Date): Recurrence | null {
     }
   }
   
-  const timesPerWeekPattern = /(\d+|שתי|שלוש|ארבע|חמש)\s*פעמים?\s*ב(שבוע|חודש)/;
+  const timesPerWeekPattern = /(\d+|פעמיים|שתי|שלוש|ארבע|חמש)\s*(?:פעמים?\s*)?ב(שבוע|חודש)/;
   const timesMatch = text.match(timesPerWeekPattern);
   
   if (timesMatch) {
@@ -102,7 +78,7 @@ export function parseRecurrence(text: string, now: Date): Recurrence | null {
     
     if (/^\d+$/.test(numStr)) {
       count = parseInt(numStr, 10);
-    } else if (numStr === 'שתי') {
+    } else if (numStr === 'שתי' || numStr === 'פעמיים') {
       count = 2;
     } else if (numStr === 'שלוש') {
       count = 3;
@@ -127,6 +103,23 @@ export function parseRecurrence(text: string, now: Date): Recurrence | null {
       needs_clarification: true,
       question: `באילו ימים ספציפיים ב${period}?`
     };
+  }
+  
+  for (const [pattern, info] of Object.entries(RECURRENCE_PATTERNS_HE)) {
+    if (text.includes(pattern)) {
+      const recurrencePattern: RecurrencePattern = {
+        freq: info.freq as 'daily' | 'weekly' | 'monthly',
+        interval: info.interval
+      };
+      
+      return {
+        type: 'recurrence',
+        pattern: recurrencePattern,
+        confidence: 0.9,
+        sourceText: text,
+        reason: `pattern_${pattern}`
+      };
+    }
   }
   
   return null;

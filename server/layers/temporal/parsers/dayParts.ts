@@ -56,15 +56,15 @@ export function applyDayPartToHour(hour: number, dayPart: DayPartResult | null):
   if (!dayPart) return hour;
   
   if (hour >= 1 && hour <= 12) {
-    if (dayPart.pmOffset && hour < 12) {
-      if (dayPart.dayPart.includes('ערב') && hour >= 5 && hour <= 11) {
+    if (dayPart.pmOffset) {
+      if (dayPart.dayPart.includes('ערב') && hour >= 1 && hour <= 11) {
         return hour + 12;
       }
       if (dayPart.dayPart.includes('צהריים') && hour >= 1 && hour <= 2) {
         return hour + 12;
       }
       if (dayPart.dayPart.includes('אחר הצהריים') || dayPart.dayPart.includes('אחה"צ')) {
-        if (hour >= 1 && hour <= 5) {
+        if (hour >= 1 && hour <= 6) {
           return hour + 12;
         }
       }

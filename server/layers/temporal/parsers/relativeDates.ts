@@ -51,8 +51,28 @@ export function parseRelativeDates(text: string, now: Date): RelativeDateResult 
     }
   }
   
-  const inXPattern = /(?:בעוד|תוך|עוד)\s+(\d+|אחד|אחת|שתיים|שניים|שלוש|שלושה|ארבע|ארבעה|חמש|חמישה|שש|שישה|שבע|שבעה)\s*(ימים?|שבועות?|חודשים?|שעות?|דקות?)?/;
+  const inXPattern = /(?:בעוד|תוך|עוד)\s+(\d+|אחד|אחת|שתיים|שניים|שלוש|שלושה|ארבע|ארבעה|חמש|חמישה|שש|שישה|שבע|שבעה|שבועיים)\s*(ימים?|שבועות?|חודשים?|שעות?|דקות?)?/;
   const inXMatch = joined.match(inXPattern);
+  
+  if (text.includes('תוך שבוע') || text.includes('בעוד שבוע')) {
+    const targetDate = addWeeks(now, 1);
+    return {
+      date: format(targetDate, 'yyyy-MM-dd'),
+      daysOffset: 7,
+      confidence: 0.9,
+      reason: 'in_1_week'
+    };
+  }
+  
+  if (text.includes('בעוד שבועיים') || text.includes('תוך שבועיים')) {
+    const targetDate = addWeeks(now, 2);
+    return {
+      date: format(targetDate, 'yyyy-MM-dd'),
+      daysOffset: 14,
+      confidence: 0.9,
+      reason: 'in_2_weeks'
+    };
+  }
   
   if (inXMatch) {
     const numStr = inXMatch[1];

@@ -102,9 +102,9 @@ export const DAY_PARTS: Record<string, { start: number; end: number; pmOffset: b
 };
 
 export const RELATIVE_DATES_HE: Record<string, number> = {
+  'מחרתיים': 2,
   'היום': 0,
   'מחר': 1,
-  'מחרתיים': 2,
   'אתמול': -1,
   'שלשום': -2,
 };
@@ -145,12 +145,12 @@ export const AMBIGUITY_MARKERS: Record<string, { softness: 'soft' | 'hard'; wind
 };
 
 export const RECURRENCE_PATTERNS_HE: Record<string, { freq: string; interval?: number }> = {
+  'כל יומיים': { freq: 'daily', interval: 2 },
   'כל יום': { freq: 'daily', interval: 1 },
   'יומי': { freq: 'daily', interval: 1 },
-  'כל יומיים': { freq: 'daily', interval: 2 },
+  'כל שבועיים': { freq: 'weekly', interval: 2 },
   'כל שבוע': { freq: 'weekly', interval: 1 },
   'שבועי': { freq: 'weekly', interval: 1 },
-  'כל שבועיים': { freq: 'weekly', interval: 2 },
   'כל חודש': { freq: 'monthly', interval: 1 },
   'חודשי': { freq: 'monthly', interval: 1 },
   'פעמיים בשבוע': { freq: 'weekly', interval: 1 },

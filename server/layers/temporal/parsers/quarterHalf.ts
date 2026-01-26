@@ -63,6 +63,28 @@ export function parseQuarterHalf(text: string): QuarterHalfResult | null {
   const afterHour = normalized.slice(index + hourInfo.consumed);
   const beforeHour = normalized.slice(0, index);
   
+  if (afterHour.includes('חסר') && afterHour.includes('רבע')) {
+    const prevHour = hour === 1 ? 12 : hour - 1;
+    return {
+      hour: prevHour,
+      minute: 45,
+      confidence: 0.95,
+      reason: 'minus_quarter',
+      formatted: `${prevHour}:45`
+    };
+  }
+  
+  if (beforeHour.includes('רבע') && (beforeHour.includes('ל') || normalized[index - 1] === 'ל')) {
+    const prevHour = hour === 1 ? 12 : hour - 1;
+    return {
+      hour: prevHour,
+      minute: 45,
+      confidence: 0.95,
+      reason: 'quarter_to',
+      formatted: `${prevHour}:45`
+    };
+  }
+  
   if (afterHour.includes('ו') && afterHour.includes('רבע')) {
     return {
       hour,
@@ -100,28 +122,6 @@ export function parseQuarterHalf(text: string): QuarterHalfResult | null {
       confidence: 0.95,
       reason: 'half_past',
       formatted: `${hour}:30`
-    };
-  }
-  
-  if (beforeHour.includes('רבע') && (beforeHour.includes('ל') || normalized[index - 1] === 'ל')) {
-    const prevHour = hour === 1 ? 12 : hour - 1;
-    return {
-      hour: prevHour,
-      minute: 45,
-      confidence: 0.95,
-      reason: 'quarter_to',
-      formatted: `${prevHour}:45`
-    };
-  }
-  
-  if (joined.includes('חסר רבע') || joined.includes('חסר') && joined.includes('רבע')) {
-    const prevHour = hour === 1 ? 12 : hour - 1;
-    return {
-      hour: prevHour,
-      minute: 45,
-      confidence: 0.95,
-      reason: 'minus_quarter',
-      formatted: `${prevHour}:45`
     };
   }
   

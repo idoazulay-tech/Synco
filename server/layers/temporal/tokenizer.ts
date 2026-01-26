@@ -82,26 +82,34 @@ function isTimeWord(word: string): boolean {
 }
 
 export function extractDigitalTime(text: string): { hour: number; minute: number; matched: string } | null {
-  const patterns = [
-    /(\d{1,2}):(\d{2})/,
-    /(\d{1,2})\.(\d{2})/,
-    /(\d{1,2})\s*([ap]m)/i,
-  ];
+  const colonPattern = text.match(/(\d{1,2}):(\d{2})/);
+  if (colonPattern) {
+    const hour = parseInt(colonPattern[1], 10);
+    const minute = parseInt(colonPattern[2], 10);
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      return { hour, minute, matched: colonPattern[0] };
+    }
+  }
   
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      let hour = parseInt(match[1], 10);
-      const minute = match[2] ? parseInt(match[2], 10) : 0;
-      
-      if (match[2] && /[ap]m/i.test(match[2])) {
-        if (match[2].toLowerCase() === 'pm' && hour < 12) hour += 12;
-        if (match[2].toLowerCase() === 'am' && hour === 12) hour = 0;
-      }
-      
-      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-        return { hour, minute, matched: match[0] };
-      }
+  const dotPattern = text.match(/(\d{1,2})\.(\d{2})/);
+  if (dotPattern) {
+    const hour = parseInt(dotPattern[1], 10);
+    const minute = parseInt(dotPattern[2], 10);
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      return { hour, minute, matched: dotPattern[0] };
+    }
+  }
+  
+  const ampmPattern = text.match(/(\d{1,2})\s*([ap]m)/i);
+  if (ampmPattern) {
+    let hour = parseInt(ampmPattern[1], 10);
+    const ampm = ampmPattern[2].toLowerCase();
+    
+    if (ampm === 'pm' && hour < 12) hour += 12;
+    if (ampm === 'am' && hour === 12) hour = 0;
+    
+    if (hour >= 0 && hour <= 23) {
+      return { hour, minute: 0, matched: ampmPattern[0] };
     }
   }
   

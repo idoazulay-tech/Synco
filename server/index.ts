@@ -11,6 +11,7 @@ import learningRoutes from './routes/learning.js';
 import automationRoutes from './routes/automation.js';
 import feedbackRoutes from './routes/feedback.js';
 import orgRoutes from './routes/org.js';
+import temporalRoutes from './routes/temporal.js';
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/learning', learningRoutes);
 app.use('/api', automationRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/org', orgRoutes);
+app.use('/api/temporal', temporalRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

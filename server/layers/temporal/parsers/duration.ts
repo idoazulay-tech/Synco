@@ -111,6 +111,61 @@ export function parseDuration(text: string): Duration | null {
     };
   }
   
+  if (joined.includes('דקה') && !joined.match(/\d/)) {
+    return {
+      type: 'duration',
+      duration_minutes: 1,
+      duration_iso: 'PT1M',
+      confidence: 0.95,
+      sourceText: text,
+      reason: 'one_minute'
+    };
+  }
+  
+  if (joined.match(/^שעה$/) || joined === 'שעה') {
+    return {
+      type: 'duration',
+      duration_minutes: 60,
+      duration_iso: 'PT1H',
+      confidence: 0.95,
+      sourceText: text,
+      reason: 'one_hour'
+    };
+  }
+  
+  if (joined.match(/^יום$/) || joined === 'יום') {
+    return {
+      type: 'duration',
+      duration_minutes: 1440,
+      duration_iso: 'P1D',
+      confidence: 0.95,
+      sourceText: text,
+      reason: 'one_day'
+    };
+  }
+  
+  if (joined.match(/^שבוע$/) || joined === 'שבוע') {
+    return {
+      type: 'duration',
+      duration_minutes: 10080,
+      duration_iso: 'P7D',
+      confidence: 0.95,
+      sourceText: text,
+      reason: 'one_week'
+    };
+  }
+  
+  if (joined.match(/^חודש$/) || joined === 'חודש') {
+    return {
+      type: 'duration',
+      duration_minutes: 43200,
+      duration_iso: 'P1M',
+      confidence: 0.95,
+      sourceText: text,
+      reason: 'one_month'
+    };
+  }
+  
   const durationPattern = /(\d+|אחת?|שתיים|שניים|שלוש[הא]?|ארבע[הא]?|חמי?ש[הא]?|שי?ש[הא]?|שבע[הא]?|שמונה|תשע[הא]?|עשר[הא]?)\s*(דקות?|שעות?|ימים?|שבועות?|חודשים?)/;
   
   const match = joined.match(durationPattern);
