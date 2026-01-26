@@ -610,7 +610,13 @@ function cleanTitle(text: string, taskType: TaskType, participants: string[], al
   };
 
   words = title.split(' ').filter(w => w.length > 0);
-  if (words.length < 2) {
+  
+  // Check if the title contains a valid Hebrew action verb (starts with ל)
+  const hasActionVerb = words.some(w => /^ל[א-ת]+/.test(w) && w.length >= 3);
+  
+  // Only fall back to generic titles if we have NO meaningful content
+  // If user said "להתעורר", keep it - that's exactly what they want to do
+  if (words.length === 0 || (words.length === 1 && !hasActionVerb && words[0].length < 3)) {
     if (participants.length > 0) {
       title = alreadyScheduled 
         ? typeToNounWithParticipant[taskType](participants[0])
