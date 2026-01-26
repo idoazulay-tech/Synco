@@ -122,9 +122,27 @@ export const CONSTRAINT_PATTERNS = {
   reducedLoad: /(אין לי קיבולת|אני קורס|יום קשה|לא ביום)/
 };
 
-// Hebrew number words to digits mapping
+// Hebrew number words to digits mapping (for hours 1-12)
 export const HEBREW_NUMBERS: Record<string, number> = {
-  'אחת': 1, 'שתיים': 2, 'שלוש': 3, 'ארבע': 4, 'חמש': 5,
+  'אחת': 1, 'אחד': 1, 'שתיים': 2, 'שניים': 2, 'שלוש': 3, 'ארבע': 4, 'חמש': 5,
   'שש': 6, 'שבע': 7, 'שמונה': 8, 'תשע': 9, 'עשר': 10,
-  'אחת עשרה': 11, 'שתים עשרה': 12
+  'אחת עשרה': 11, 'אחד עשרה': 11, 'שתים עשרה': 12, 'שנים עשרה': 12
+};
+
+// Hebrew tens for minutes (20-59)
+export const HEBREW_TENS: Record<string, number> = {
+  'עשרים': 20, 'שלושים': 30, 'ארבעים': 40, 'חמישים': 50, 'שישים': 60
+};
+
+// Hebrew units for combining with tens (e.g., "חמישים ותשע" = 59)
+export const HEBREW_UNITS: Record<string, number> = {
+  'אחת': 1, 'אחד': 1, 'שתיים': 2, 'שניים': 2, 'שלוש': 3, 'ארבע': 4, 'חמש': 5,
+  'שש': 6, 'שבע': 7, 'שמונה': 8, 'תשע': 9
+};
+
+// Hebrew teens (11-19) for minutes
+export const HEBREW_TEENS: Record<string, number> = {
+  'אחת עשרה': 11, 'אחד עשרה': 11, 'שתים עשרה': 12, 'שנים עשרה': 12,
+  'שלוש עשרה': 13, 'ארבע עשרה': 14, 'חמש עשרה': 15, 'שש עשרה': 16,
+  'שבע עשרה': 17, 'שמונה עשרה': 18, 'תשע עשרה': 19
 };

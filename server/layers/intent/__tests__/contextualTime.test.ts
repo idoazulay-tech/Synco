@@ -45,6 +45,28 @@ describe('Contextual Time Disambiguation', () => {
     });
   });
 
+  describe('Spoken Hebrew time with minutes', () => {
+    it('should parse "שמונה חמישים ותשע" as 08:59', () => {
+      const result = extractEntities('משימה בשמונה חמישים ותשע');
+      expect(result.time.normalized).toBe('08:59');
+    });
+
+    it('should parse "שלוש ארבעים וחמש" as 15:45 (afternoon disambiguation)', () => {
+      const result = extractEntities('פגישה בשלוש ארבעים וחמש');
+      expect(result.time.normalized).toMatch(/^(03|15):45$/);
+    });
+
+    it('should parse "עשר עשרים" as 10:20', () => {
+      const result = extractEntities('תזכורת בעשר עשרים');
+      expect(result.time.normalized).toMatch(/^(10|22):20$/);
+    });
+
+    it('should parse "שתיים חמש עשרה" as 02:15 or 14:15', () => {
+      const result = extractEntities('פגישה בשתיים חמש עשרה');
+      expect(result.time.normalized).toMatch(/^(02|14):15$/);
+    });
+  });
+
   describe('Edge cases - clamping to context boundaries', () => {
     it('should handle "1 בבוקר" by clamping to morning range minimum (06:00)', () => {
       const result = extractEntities('משימה ב1 בבוקר');
