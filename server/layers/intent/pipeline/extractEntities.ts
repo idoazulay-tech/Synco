@@ -12,6 +12,8 @@ import {
 } from '../rules/patterns';
 import { parseSpokenTimeHe } from '../parsers/timeSpokenHeToDigital';
 import { URGENCY_KEYWORDS, MUST_KEYWORDS, ACTION_VERBS } from '../rules/keywords';
+import { parseTemporalHe } from '../../temporal/index.js';
+import type { TemporalResult, TimePoint, DatePoint, Duration, Interval, Recurrence, AmbiguousTime } from '../../temporal/types.js';
 
 // Relative anchor patterns for Hebrew
 const RELATIVE_ANCHOR_PATTERNS = {
@@ -407,10 +409,83 @@ function extractRelativeAnchor(text: string): RelativeAnchor | null {
 // Export for testing
 export { extractRelativeAnchor };
 
+interface TemporalEnhancedEntities {
+  time: { raw: string; normalized: string; confidence: number };
+  date: { raw: string; normalized: string; confidence: number };
+  duration: { raw: string; normalized: number; confidence: number };
+  interval?: { start: string; end: string; window: string; confidence: number };
+  recurrence?: { pattern: { freq: string; interval: number; byDay?: string[] }; confidence: number };
+  temporalHints?: { softness?: string; dayPart?: string };
+}
+
+function extractWithTemporalEngine(text: string): TemporalEnhancedEntities | null {
+  try {
+    const result = parseTemporalHe(text);
+    
+    if (result.confidence < 0.5) {
+      return null;
+    }
+    
+    const entities: TemporalEnhancedEntities = {
+      time: { raw: '', normalized: '', confidence: 0 },
+      date: { raw: '', normalized: '', confidence: 0 },
+      duration: { raw: '', normalized: 0, confidence: 0 }
+    };
+    
+    if (result.type === 'timepoint') {
+      const tp = result as TimePoint;
+      if (tp.time) {
+        entities.time = { raw: tp.sourceText, normalized: tp.time, confidence: tp.confidence };
+      }
+      if (tp.date) {
+        entities.date = { raw: tp.sourceText, normalized: tp.date, confidence: tp.confidence };
+      }
+    } else if (result.type === 'datepoint') {
+      const dp = result as DatePoint;
+      entities.date = { raw: dp.sourceText, normalized: dp.date, confidence: dp.confidence };
+    } else if (result.type === 'duration') {
+      const dur = result as Duration;
+      entities.duration = { raw: dur.sourceText, normalized: dur.duration_minutes, confidence: dur.confidence };
+    } else if (result.type === 'interval') {
+      const intv = result as Interval;
+      if (intv.start && intv.end) {
+        const startTime = intv.start.split('T')[1] || intv.start;
+        entities.time = { raw: intv.sourceText, normalized: startTime, confidence: intv.confidence };
+        entities.interval = { 
+          start: intv.start, 
+          end: intv.end, 
+          window: intv.window || 'tight', 
+          confidence: intv.confidence 
+        };
+      }
+    } else if (result.type === 'recurrence') {
+      const rec = result as Recurrence;
+      entities.recurrence = { 
+        pattern: { 
+          freq: rec.pattern.freq, 
+          interval: rec.pattern.interval || 1, 
+          byDay: rec.pattern.byDay 
+        }, 
+        confidence: rec.confidence 
+      };
+    } else if (result.type === 'ambiguous') {
+      const amb = result as AmbiguousTime;
+      entities.temporalHints = amb.hints;
+    }
+    
+    return entities;
+  } catch {
+    return null;
+  }
+}
+
 export function extractEntities(text: string): ExtractedEntities {
-  const time = extractTime(text);
-  const date = extractDate(text);
-  const duration = extractDuration(text);
+  const temporalResult = extractWithTemporalEngine(text);
+  
+  const time = (temporalResult && temporalResult.time.confidence > 0) ? temporalResult.time : extractTime(text);
+  const date = (temporalResult && temporalResult.date.confidence > 0) ? temporalResult.date : extractDate(text);
+  const duration = (temporalResult && temporalResult.duration.confidence > 0) ? temporalResult.duration : extractDuration(text);
+  
   const people = extractPeople(text);
   const location = extractLocation(text);
   const taskName = extractTaskName(text);
@@ -419,7 +494,7 @@ export function extractEntities(text: string): ExtractedEntities {
   const constraints = extractConstraints(text);
   const relativeAnchor = extractRelativeAnchor(text);
   
-  return {
+  const result: ExtractedEntities = {
     time: { raw: time.raw, normalized: time.normalized, confidence: time.confidence },
     date: { raw: date.raw, normalized: date.normalized, confidence: date.confidence },
     duration: { raw: duration.raw, normalized: duration.normalized, confidence: duration.confidence },
@@ -431,4 +506,16 @@ export function extractEntities(text: string): ExtractedEntities {
     constraints,
     relativeAnchor
   };
+  
+  if (temporalResult?.interval) {
+    (result as any).interval = temporalResult.interval;
+  }
+  if (temporalResult?.recurrence) {
+    (result as any).recurrence = temporalResult.recurrence;
+  }
+  if (temporalResult?.temporalHints) {
+    (result as any).temporalHints = temporalResult.temporalHints;
+  }
+  
+  return result;
 }
