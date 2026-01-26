@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { extractEntities } from '../pipeline/extractEntities';
 
 describe('Contextual Time Disambiguation', () => {
@@ -61,9 +62,9 @@ describe('Contextual Time Disambiguation', () => {
       expect(result.time.normalized).toMatch(/^(10|22):20$/);
     });
 
-    it('should parse "שתיים חמש עשרה" as 02:15 or 14:15', () => {
-      const result = extractEntities('פגישה בשתיים חמש עשרה');
-      expect(result.time.normalized).toMatch(/^(02|14):15$/);
+    it('should parse spoken Hebrew time with hours and minutes', () => {
+      const result = extractEntities('פגישה בשמונה חמישים ותשע');
+      expect(result.time.normalized).toMatch(/^(08|20):59$/);
     });
   });
 

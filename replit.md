@@ -31,6 +31,7 @@ Preferred communication style: Simple, everyday language.
     - **Clarifying Questions Loop**: When MA needs more information (uncertain about time, date, etc.), questions appear in the ארגון (Organization) page. User answers are re-analyzed by MA until task can be created with complete details.
     - **Relative Scheduling (Anchor Scheduling)**: Schedule tasks relative to timeline using Hebrew phrases like "אחרי המשימה הנוכחית", "מתחילת המשימה הבאה", "אחרי המשימה הבאה". MA resolves anchor times from current/next tasks automatically.
     - **Contextual Time Disambiguation**: Smart parsing of ambiguous time inputs (e.g., "12") based on linguistic context (בוקר/צהריים/ערב/לילה) and future-biased temporal proximity.
+    - **TIME_SPOKEN_HE_IL_TO_DIGITAL**: Modular parser for spoken Hebrew time (e.g., "שמונה חמישים ותשע" → 8:59). Supports round hours ("שמונה בדיוק", "שמונה עגול"), all minute values 00-59, and validates output.
 
 ### Backend and AI Architecture
 The backend is built with Express.js and TypeScript, using PostgreSQL via Prisma. It incorporates a 7-Layer AI architecture for intelligent task management:

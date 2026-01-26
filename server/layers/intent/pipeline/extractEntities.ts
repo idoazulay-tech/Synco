@@ -8,11 +8,9 @@ import {
   PEOPLE_PATTERNS,
   LOCATION_PATTERNS,
   CONSTRAINT_PATTERNS,
-  HEBREW_NUMBERS,
-  HEBREW_TENS,
-  HEBREW_UNITS,
-  HEBREW_TEENS
+  HEBREW_NUMBERS
 } from '../rules/patterns';
+import { parseSpokenTimeHe } from '../parsers/timeSpokenHeToDigital';
 import { URGENCY_KEYWORDS, MUST_KEYWORDS, ACTION_VERBS } from '../rules/keywords';
 
 // Relative anchor patterns for Hebrew
@@ -41,89 +39,6 @@ const RELATIVE_ANCHOR_PATTERNS = {
 
 function hebrewToNumber(word: string): number | null {
   return HEBREW_NUMBERS[word] ?? null;
-}
-
-// Parse Hebrew compound minutes like "חמישים ותשע" = 59, "עשרים ואחת" = 21
-function parseHebrewMinutes(text: string): number | null {
-  // Check for teens first (11-19)
-  for (const [word, value] of Object.entries(HEBREW_TEENS)) {
-    if (text.includes(word)) {
-      return value;
-    }
-  }
-  
-  // Check for tens + units (e.g., "חמישים ותשע")
-  for (const [tensWord, tensValue] of Object.entries(HEBREW_TENS)) {
-    if (text.includes(tensWord)) {
-      // Look for "ו" + unit after the tens
-      const tensIndex = text.indexOf(tensWord);
-      const afterTens = text.slice(tensIndex + tensWord.length);
-      
-      // Check for "ו" + unit
-      for (const [unitWord, unitValue] of Object.entries(HEBREW_UNITS)) {
-        const pattern = new RegExp(`\\s*ו${unitWord}\\b`);
-        if (pattern.test(afterTens)) {
-          return tensValue + unitValue;
-        }
-      }
-      // Just tens without unit
-      return tensValue;
-    }
-  }
-  
-  // Check for single units (1-9) as minutes
-  for (const [word, value] of Object.entries(HEBREW_UNITS)) {
-    if (text.includes(word)) {
-      return value;
-    }
-  }
-  
-  // Check for "עשר" = 10
-  if (text.includes('עשר') && !text.includes('עשרה') && !text.includes('עשרים')) {
-    return 10;
-  }
-  
-  return null;
-}
-
-// Parse spoken Hebrew time like "שמונה חמישים ותשע" = 8:59
-function parseSpokenHebrewTime(text: string): { hour: number; minute: number; raw: string } | null {
-  // Pattern: hour word + optional minute words
-  // Examples: "שמונה חמישים ותשע", "שלוש ארבעים וחמש", "שתיים עשרים"
-  
-  const hourWords = Object.keys(HEBREW_NUMBERS).sort((a, b) => b.length - a.length);
-  
-  for (const hourWord of hourWords) {
-    const hourIndex = text.indexOf(hourWord);
-    if (hourIndex === -1) continue;
-    
-    const hour = HEBREW_NUMBERS[hourWord];
-    const afterHour = text.slice(hourIndex + hourWord.length).trim();
-    
-    // If there's more text after the hour, try to parse it as minutes
-    if (afterHour.length > 0) {
-      const minutes = parseHebrewMinutes(afterHour);
-      if (minutes !== null && minutes < 60) {
-        // Find the full raw match
-        let raw = text.slice(hourIndex);
-        // Trim to just the time portion
-        const endIndex = Math.min(
-          ...Object.keys(HEBREW_TENS).map(t => {
-            const idx = afterHour.indexOf(t);
-            return idx >= 0 ? idx + t.length + hourWord.length + 1 : Infinity;
-          }),
-          raw.length
-        );
-        
-        return { hour, minute: minutes, raw: text.slice(hourIndex) };
-      }
-    }
-    
-    // Just hour, no minutes
-    return { hour, minute: 0, raw: hourWord };
-  }
-  
-  return null;
 }
 
 // Contextual Time Disambiguation - linguistic context keywords
@@ -221,11 +136,13 @@ function extractTime(text: string, nowOverride?: Date): { raw: string; normalize
   }
   
   // Spoken Hebrew time with minutes (e.g., "שמונה חמישים ותשע" = 8:59)
-  const spokenTime = parseSpokenHebrewTime(text);
-  if (spokenTime && spokenTime.minute > 0) {
+  // Strip "ב" prefix before hour words for spoken time parsing (use space or start as boundary)
+  const cleanedForSpoken = text.replace(/(^|\s)ב(אחת|שתיים|שלוש|ארבע|חמש|שש|שבע|שמונה|תשע|עשר|אחד|שניים)/g, '$1$2');
+  const spokenTime = parseSpokenTimeHe(cleanedForSpoken);
+  if (spokenTime.confidence > 0.5 && !spokenTime.needsClarification) {
     const { resolvedHour, reason } = disambiguateHour(spokenTime.hour, nowHour, context);
     const minuteStr = spokenTime.minute.toString().padStart(2, '0');
-    return { raw: spokenTime.raw, normalized: `${resolvedHour.toString().padStart(2, '0')}:${minuteStr}`, confidence: 0.90, reason };
+    return { raw: spokenTime.formatted, normalized: `${resolvedHour.toString().padStart(2, '0')}:${minuteStr}`, confidence: spokenTime.confidence, reason };
   }
   
   // Hebrew word numbers (e.g., "בשלוש")

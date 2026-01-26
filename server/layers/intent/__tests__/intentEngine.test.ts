@@ -1,5 +1,5 @@
 // Unit tests for Intent & Context Engine
-
+import { describe, it, expect, beforeEach, test } from 'vitest';
 import { IntentContextEngine } from '../IntentContextEngine';
 import { ContextManager } from '../memory/ContextManager';
 
