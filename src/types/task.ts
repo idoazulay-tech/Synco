@@ -2,6 +2,8 @@ export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'not_complete
 
 export type SchedulingStatus = 'pending' | 'scheduled';
 
+export type TimeConstraintType = 'HARD_LOCK' | 'HUMAN_DEPENDENT' | 'FLEX_WINDOW' | 'FILL_GAPS';
+
 export type HistoryEventType = 
   | 'created' 
   | 'started' 
@@ -43,6 +45,7 @@ export interface Task {
   duration: number; // in minutes
   status: TaskStatus;
   schedulingStatus?: SchedulingStatus; // 'pending' if missing info, 'scheduled' when complete
+  timeConstraintType?: TimeConstraintType; // Time Constraint Layer classification
   createdFrom?: CreatedFrom; // how this task was created
   tags: Tag[];
   images?: string[];

@@ -6,6 +6,9 @@ export type Urgency = 'low' | 'medium' | 'high';
 // PATCH 3: Task Type taxonomy for stable situationKeys
 export type TaskType = 'cooking' | 'dishes' | 'shopping' | 'work' | 'home' | 'health' | 'dog' | 'general';
 
+// Time Constraint Layer - Layer 1 Core/Gates
+export type TimeConstraintType = 'HARD_LOCK' | 'HUMAN_DEPENDENT' | 'FLEX_WINDOW' | 'FILL_GAPS';
+
 export interface ScheduledTime {
   dateIso: string;
   startTimeIso: string;
