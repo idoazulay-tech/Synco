@@ -25,6 +25,7 @@ export interface Task {
   durationMinutes: number;
   scheduled: ScheduledTime | null;
   dependencies: string[];
+  timeConstraintType?: TimeConstraintType; // Layer 1 classification
   createdAtIso: string;
   updatedAtIso: string;
 }
