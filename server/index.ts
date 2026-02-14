@@ -12,6 +12,7 @@ import automationRoutes from './routes/automation.js';
 import feedbackRoutes from './routes/feedback.js';
 import orgRoutes from './routes/org.js';
 import temporalRoutes from './routes/temporal.js';
+import { testQdrantConnection } from './lib/qdrant.js';
 
 const app = express();
 
@@ -39,6 +40,7 @@ const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
   console.log(`HaMefraket server running on port ${PORT}`);
+  testQdrantConnection();
 });
 
 export { prisma };
