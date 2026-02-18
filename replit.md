@@ -158,3 +158,25 @@ A full-featured companion app providing complete access to all MA features:
 -   **Vaul**: Drawer component.
 -   **next-themes**: Theme switching.
 -   **sonner**: Toast notifications.
+
+### Synco Brain v1 (AI Learning System)
+Located at `server/brain/`. An AI-powered learning system with long-term memory and adaptive behavior.
+
+**Architecture (3 Zones):**
+- **Active Brain (Replit)**: Real-time processing pipeline
+- **Long-term Memory (Qdrant)**: 4 vector collections (user_events, user_insights, user_profile, synco_knowledge), 1536-dim Cosine
+- **Knowledge Library**: Domain-specific ADHD/time-management knowledge
+
+**6 Services Pipeline:**
+1. **Ingestion** (`services/ingestion.ts`): Normalizes Hebrew text, extracts metadata, creates embedding text
+2. **Memory** (`services/memory.ts`): Stores/retrieves from Qdrant with semantic search, persists learning state
+3. **Understanding** (`services/understanding.ts`): OpenAI analysis with Hebrew system prompt, validates JSON output
+4. **Policy Gate** (`services/policy.ts`): Trust progression (learning → cautious → trusted), persisted in Qdrant
+5. **Curiosity** (`services/curiosity.ts`): Schedules proactive questions, deduplication, priority queue
+6. **Orchestrator** (`index.ts`): Coordinates full pipeline, caps confidence when using fallback embeddings
+
+**API Endpoints:** `/api/brain/process`, `/api/brain/approve`, `/api/brain/curiosity/answer`, `/api/brain/status/:userId`
+
+**OpenAI Integration:** Uses Replit AI Integrations (gpt-4.1-mini for chat). Embeddings API not supported - uses hash-based fallback with capped confidence.
+
+**Qdrant Integration:** 4 collections with payload indices. Learning state persisted via deterministic UUIDs (v5).
