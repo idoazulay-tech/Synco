@@ -13,6 +13,7 @@ import feedbackRoutes from './routes/feedback.js';
 import orgRoutes from './routes/org.js';
 import temporalRoutes from './routes/temporal.js';
 import brainRoutes from './routes/brain.js';
+import memoryDebugRoutes from './routes/memory-debug.js';
 import { testQdrantConnection } from './lib/qdrant.js';
 import { initQdrantCollections } from './lib/qdrant-init.js';
 
@@ -34,6 +35,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/org', orgRoutes);
 app.use('/api/temporal', temporalRoutes);
 app.use('/api/brain', brainRoutes);
+app.use('/api/memory', memoryDebugRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

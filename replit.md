@@ -180,3 +180,10 @@ Located at `server/brain/`. An AI-powered learning system with long-term memory 
 **OpenAI Integration:** Uses Replit AI Integrations (gpt-4.1-mini for chat). Embeddings API not supported - uses hash-based fallback with capped confidence.
 
 **Qdrant Integration:** 4 collections with payload indices. Learning state persisted via deterministic UUIDs (v5).
+
+**Qdrant Infrastructure (Single Source of Truth):**
+- Client: `server/lib/qdrant.ts` — exports `qdrant`, `testQdrantConnection()`, `ensureCollections()`, `upsertPoint()`, `searchSimilar()`
+- Init: `server/lib/qdrant-init.ts` — exports `initQdrantCollections()`, creates 4 collections + payload indices on startup
+- User isolation: All personal collections filter by `userId` (MUST filter). `synco_knowledge` is shared.
+- Debug endpoint: `POST /api/memory/debug/search` (dev only) — validates userId, returns filtered results
+- Guard: `validateUserId()` exported from `server/routes/memory-debug.ts` for reuse
