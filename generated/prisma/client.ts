@@ -69,3 +69,13 @@ export type UserSettings = Prisma.UserSettingsModel
  * 
  */
 export type RegulationLog = Prisma.RegulationLogModel
+/**
+ * Model UserMetrics
+ * 
+ */
+export type UserMetrics = Prisma.UserMetricsModel
+/**
+ * Model BrainFlag
+ * 
+ */
+export type BrainFlag = Prisma.BrainFlagModel

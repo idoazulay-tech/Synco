@@ -68,6 +68,8 @@ export interface BrainResponse {
   insights: string[];
   curiosityQuestions: string[];
   policyDecision: PolicyDecision;
+  localFlags?: string[];
+  aiTriggered?: boolean;
 }
 
 export interface BrainAction {

@@ -167,13 +167,15 @@ Located at `server/brain/`. An AI-powered learning system with long-term memory 
 - **Long-term Memory (Qdrant)**: 4 vector collections (user_events, user_insights, user_profile, synco_knowledge), 1536-dim Cosine
 - **Knowledge Library**: Domain-specific ADHD/time-management knowledge
 
-**6 Services Pipeline:**
+**8 Services Pipeline:**
 1. **Ingestion** (`services/ingestion.ts`): Normalizes Hebrew text, extracts metadata, creates embedding text
 2. **Memory** (`services/memory.ts`): `storeUserMessage(userId, text, meta)` saves to user_events with userId/text/timestamp/type/isFallbackEmbedding. `searchUserMemory(userId, queryText, limit)` retrieves with MUST userId filter. Also: `buildContext()`, `storeLearningState()`, `storeInsight()`
-3. **Understanding** (`services/understanding.ts`): OpenAI analysis with Hebrew system prompt, validates JSON output
-4. **Policy Gate** (`services/policy.ts`): Trust progression (learning → cautious → trusted), persisted in Qdrant
-5. **Curiosity** (`services/curiosity.ts`): Schedules proactive questions, deduplication, priority queue
-6. **Orchestrator** (`index.ts`): Coordinates full pipeline, caps confidence when using fallback embeddings
+3. **Local Analyzer** (`services/localAnalyzer.ts`): Runs on EVERY event without OpenAI. Detects flags (MISSING_INFO, REPEATED_POSTPONE, OVERLOAD_DAY, PRIORITY_UNCLEAR, PATTERN_SHIFT, SCHEDULING_CONFLICT). Updates UserMetrics in Prisma. Decides if AI should be triggered.
+4. **AI Analyzer** (`services/aiAnalyzer.ts`): Runs ONLY when Local Analyzer triggers it (high-severity flags or threshold). Returns max 1 insight or 1 question. 10-minute cooldown per user.
+5. **Understanding** (`services/understanding.ts`): OpenAI analysis with Hebrew system prompt, validates JSON output
+6. **Policy Gate** (`services/policy.ts`): Trust progression (learning → cautious → trusted), persisted in Qdrant
+7. **Curiosity** (`services/curiosity.ts`): Schedules proactive questions, deduplication, priority queue
+8. **Orchestrator** (`index.ts`): Two-tier flow: Local Analyzer first → if no flags, return immediately without AI → if flags, run AI Analyzer + full Understanding pipeline
 
 **API Endpoints:** `/api/brain/process`, `/api/brain/approve`, `/api/brain/curiosity/answer`, `/api/brain/status/:userId`
 

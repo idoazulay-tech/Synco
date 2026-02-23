@@ -389,7 +389,9 @@ export const ModelName = {
   RunStep: 'RunStep',
   InsightLog: 'InsightLog',
   UserSettings: 'UserSettings',
-  RegulationLog: 'RegulationLog'
+  RegulationLog: 'RegulationLog',
+  UserMetrics: 'UserMetrics',
+  BrainFlag: 'BrainFlag'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -405,7 +407,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "taskFile" | "taskRun" | "runStep" | "insightLog" | "userSettings" | "regulationLog"
+    modelProps: "taskFile" | "taskRun" | "runStep" | "insightLog" | "userSettings" | "regulationLog" | "userMetrics" | "brainFlag"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -853,6 +855,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    UserMetrics: {
+      payload: Prisma.$UserMetricsPayload<ExtArgs>
+      fields: Prisma.UserMetricsFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.UserMetricsFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserMetricsPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.UserMetricsFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserMetricsPayload>
+        }
+        findFirst: {
+          args: Prisma.UserMetricsFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserMetricsPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.UserMetricsFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserMetricsPayload>
+        }
+        findMany: {
+          args: Prisma.UserMetricsFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserMetricsPayload>[]
+        }
+        create: {
+          args: Prisma.UserMetricsCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserMetricsPayload>
+        }
+        createMany: {
+          args: Prisma.UserMetricsCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.UserMetricsCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserMetricsPayload>[]
+        }
+        delete: {
+          args: Prisma.UserMetricsDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserMetricsPayload>
+        }
+        update: {
+          args: Prisma.UserMetricsUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserMetricsPayload>
+        }
+        deleteMany: {
+          args: Prisma.UserMetricsDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.UserMetricsUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.UserMetricsUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserMetricsPayload>[]
+        }
+        upsert: {
+          args: Prisma.UserMetricsUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserMetricsPayload>
+        }
+        aggregate: {
+          args: Prisma.UserMetricsAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateUserMetrics>
+        }
+        groupBy: {
+          args: Prisma.UserMetricsGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserMetricsGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.UserMetricsCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserMetricsCountAggregateOutputType> | number
+        }
+      }
+    }
+    BrainFlag: {
+      payload: Prisma.$BrainFlagPayload<ExtArgs>
+      fields: Prisma.BrainFlagFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.BrainFlagFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$BrainFlagPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.BrainFlagFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$BrainFlagPayload>
+        }
+        findFirst: {
+          args: Prisma.BrainFlagFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$BrainFlagPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.BrainFlagFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$BrainFlagPayload>
+        }
+        findMany: {
+          args: Prisma.BrainFlagFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$BrainFlagPayload>[]
+        }
+        create: {
+          args: Prisma.BrainFlagCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$BrainFlagPayload>
+        }
+        createMany: {
+          args: Prisma.BrainFlagCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.BrainFlagCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$BrainFlagPayload>[]
+        }
+        delete: {
+          args: Prisma.BrainFlagDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$BrainFlagPayload>
+        }
+        update: {
+          args: Prisma.BrainFlagUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$BrainFlagPayload>
+        }
+        deleteMany: {
+          args: Prisma.BrainFlagDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.BrainFlagUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.BrainFlagUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$BrainFlagPayload>[]
+        }
+        upsert: {
+          args: Prisma.BrainFlagUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$BrainFlagPayload>
+        }
+        aggregate: {
+          args: Prisma.BrainFlagAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateBrainFlag>
+        }
+        groupBy: {
+          args: Prisma.BrainFlagGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.BrainFlagGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.BrainFlagCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.BrainFlagCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -967,6 +1117,37 @@ export const RegulationLogScalarFieldEnum = {
 } as const
 
 export type RegulationLogScalarFieldEnum = (typeof RegulationLogScalarFieldEnum)[keyof typeof RegulationLogScalarFieldEnum]
+
+
+export const UserMetricsScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  eventsCount: 'eventsCount',
+  eventsSinceAnalysis: 'eventsSinceAnalysis',
+  tasksCreatedCount: 'tasksCreatedCount',
+  tasksCompletedCount: 'tasksCompletedCount',
+  tasksPostponedCount: 'tasksPostponedCount',
+  avgStartDelayMinutes: 'avgStartDelayMinutes',
+  currentStreak: 'currentStreak',
+  bestStreak: 'bestStreak',
+  lastEventAt: 'lastEventAt',
+  lastAIAnalysisAt: 'lastAIAnalysisAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type UserMetricsScalarFieldEnum = (typeof UserMetricsScalarFieldEnum)[keyof typeof UserMetricsScalarFieldEnum]
+
+
+export const BrainFlagScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  flagType: 'flagType',
+  context: 'context',
+  resolved: 'resolved',
+  createdAt: 'createdAt'
+} as const
+
+export type BrainFlagScalarFieldEnum = (typeof BrainFlagScalarFieldEnum)[keyof typeof BrainFlagScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1148,6 +1329,13 @@ export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, '
 export type ListFloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float[]'>
     
 
+
+/**
+ * Reference to a field of type 'Boolean'
+ */
+export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
+    
+
 /**
  * Batch Payload for updateMany & deleteMany & createMany
  */
@@ -1249,6 +1437,8 @@ export type GlobalOmitConfig = {
   insightLog?: Prisma.InsightLogOmit
   userSettings?: Prisma.UserSettingsOmit
   regulationLog?: Prisma.RegulationLogOmit
+  userMetrics?: Prisma.UserMetricsOmit
+  brainFlag?: Prisma.BrainFlagOmit
 }
 
 /* Types for Logging */

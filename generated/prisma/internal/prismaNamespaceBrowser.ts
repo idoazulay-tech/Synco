@@ -56,7 +56,9 @@ export const ModelName = {
   RunStep: 'RunStep',
   InsightLog: 'InsightLog',
   UserSettings: 'UserSettings',
-  RegulationLog: 'RegulationLog'
+  RegulationLog: 'RegulationLog',
+  UserMetrics: 'UserMetrics',
+  BrainFlag: 'BrainFlag'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -150,6 +152,37 @@ export const RegulationLogScalarFieldEnum = {
 } as const
 
 export type RegulationLogScalarFieldEnum = (typeof RegulationLogScalarFieldEnum)[keyof typeof RegulationLogScalarFieldEnum]
+
+
+export const UserMetricsScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  eventsCount: 'eventsCount',
+  eventsSinceAnalysis: 'eventsSinceAnalysis',
+  tasksCreatedCount: 'tasksCreatedCount',
+  tasksCompletedCount: 'tasksCompletedCount',
+  tasksPostponedCount: 'tasksPostponedCount',
+  avgStartDelayMinutes: 'avgStartDelayMinutes',
+  currentStreak: 'currentStreak',
+  bestStreak: 'bestStreak',
+  lastEventAt: 'lastEventAt',
+  lastAIAnalysisAt: 'lastAIAnalysisAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type UserMetricsScalarFieldEnum = (typeof UserMetricsScalarFieldEnum)[keyof typeof UserMetricsScalarFieldEnum]
+
+
+export const BrainFlagScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  flagType: 'flagType',
+  context: 'context',
+  resolved: 'resolved',
+  createdAt: 'createdAt'
+} as const
+
+export type BrainFlagScalarFieldEnum = (typeof BrainFlagScalarFieldEnum)[keyof typeof BrainFlagScalarFieldEnum]
 
 
 export const SortOrder = {
