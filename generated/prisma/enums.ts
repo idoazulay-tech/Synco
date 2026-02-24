@@ -44,3 +44,12 @@ export const InsightsMode = {
 } as const
 
 export type InsightsMode = (typeof InsightsMode)[keyof typeof InsightsMode]
+
+
+export const OnboardingStatus = {
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+  SKIPPED_PARTIAL: 'SKIPPED_PARTIAL'
+} as const
+
+export type OnboardingStatus = (typeof OnboardingStatus)[keyof typeof OnboardingStatus]

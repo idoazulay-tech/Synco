@@ -89,6 +89,7 @@ Preferred communication style: Simple, everyday language.
     - **Relative Scheduling (Anchor Scheduling)**: Schedule tasks relative to timeline using Hebrew phrases like "אחרי המשימה הנוכחית", "מתחילת המשימה הבאה", "אחרי המשימה הבאה". MA resolves anchor times from current/next tasks automatically.
     - **Contextual Time Disambiguation**: Smart parsing of ambiguous time inputs (e.g., "12") based on linguistic context (בוקר/צהריים/ערב/לילה) and future-biased temporal proximity.
     - **TIME_SPOKEN_HE_IL_TO_DIGITAL**: Modular parser for spoken Hebrew time (e.g., "שמונה חמישים ותשע" → 8:59). Supports round hours ("שמונה בדיוק", "שמונה עגול"), all minute values 00-59, and validates output.
+    - **Dynamic Onboarding & Behavior Mapping**: Multi-step onboarding flow at `/onboarding` with two paths (Quick Focus multi-select or Open Conversation). Maps behavior patterns per difficulty (examples, triggers, reactions). Stores patterns in DB + Qdrant memory. Skip mechanism with partial completion tracking. Status: `IN_PROGRESS` | `COMPLETED` | `SKIPPED_PARTIAL`.
 
 ### Temporal Engine (ma_temporal_engine_he_v1)
 A comprehensive Hebrew temporal expression parser integrated into MA's Intent Engine. Located at `server/layers/temporal/`.

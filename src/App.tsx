@@ -17,6 +17,7 @@ import AboutPage from "./pages/AboutPage";
 import AILabPage from "./pages/AILabPage";
 import ShikulPage from "./pages/ShikulPage";
 import NotFound from "./pages/NotFound";
+import OnboardingPage from "./pages/OnboardingPage";
 
 const defaultQueryFn = async ({ queryKey }: { queryKey: readonly unknown[] }) => {
   const url = queryKey[0] as string;
@@ -57,6 +58,7 @@ const App = () => (
           <Route path="/about" element={<AboutPage />} />
           <Route path="/ai-lab" element={<AILabPage />} />
           <Route path="/shikul" element={<ShikulPage />} />
+          <Route path="/onboarding" element={<OnboardingPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

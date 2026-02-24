@@ -123,3 +123,23 @@ model BrainFlag {
 
   @@index([userId, resolved])
 }
+
+model OnboardingState {
+  id                  String            @id @default(cuid())
+  userId              String            @unique
+  status              OnboardingStatus  @default(IN_PROGRESS)
+  selectedPath        String?
+  difficulties        Json?
+  rankedDifficulties  Json?
+  behaviorPatterns    Json?
+  mappedDifficulties  Json?
+  currentStep         String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+}
+
+enum OnboardingStatus {
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED_PARTIAL
+}

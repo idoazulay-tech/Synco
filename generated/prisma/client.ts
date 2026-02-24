@@ -79,3 +79,8 @@ export type UserMetrics = Prisma.UserMetricsModel
  * 
  */
 export type BrainFlag = Prisma.BrainFlagModel
+/**
+ * Model OnboardingState
+ * 
+ */
+export type OnboardingState = Prisma.OnboardingStateModel

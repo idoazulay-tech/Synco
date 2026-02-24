@@ -391,7 +391,8 @@ export const ModelName = {
   UserSettings: 'UserSettings',
   RegulationLog: 'RegulationLog',
   UserMetrics: 'UserMetrics',
-  BrainFlag: 'BrainFlag'
+  BrainFlag: 'BrainFlag',
+  OnboardingState: 'OnboardingState'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -407,7 +408,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "taskFile" | "taskRun" | "runStep" | "insightLog" | "userSettings" | "regulationLog" | "userMetrics" | "brainFlag"
+    modelProps: "taskFile" | "taskRun" | "runStep" | "insightLog" | "userSettings" | "regulationLog" | "userMetrics" | "brainFlag" | "onboardingState"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1003,6 +1004,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    OnboardingState: {
+      payload: Prisma.$OnboardingStatePayload<ExtArgs>
+      fields: Prisma.OnboardingStateFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OnboardingStateFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OnboardingStatePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OnboardingStateFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OnboardingStatePayload>
+        }
+        findFirst: {
+          args: Prisma.OnboardingStateFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OnboardingStatePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OnboardingStateFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OnboardingStatePayload>
+        }
+        findMany: {
+          args: Prisma.OnboardingStateFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OnboardingStatePayload>[]
+        }
+        create: {
+          args: Prisma.OnboardingStateCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OnboardingStatePayload>
+        }
+        createMany: {
+          args: Prisma.OnboardingStateCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OnboardingStateCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OnboardingStatePayload>[]
+        }
+        delete: {
+          args: Prisma.OnboardingStateDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OnboardingStatePayload>
+        }
+        update: {
+          args: Prisma.OnboardingStateUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OnboardingStatePayload>
+        }
+        deleteMany: {
+          args: Prisma.OnboardingStateDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OnboardingStateUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OnboardingStateUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OnboardingStatePayload>[]
+        }
+        upsert: {
+          args: Prisma.OnboardingStateUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OnboardingStatePayload>
+        }
+        aggregate: {
+          args: Prisma.OnboardingStateAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOnboardingState>
+        }
+        groupBy: {
+          args: Prisma.OnboardingStateGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OnboardingStateGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OnboardingStateCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OnboardingStateCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1148,6 +1223,23 @@ export const BrainFlagScalarFieldEnum = {
 } as const
 
 export type BrainFlagScalarFieldEnum = (typeof BrainFlagScalarFieldEnum)[keyof typeof BrainFlagScalarFieldEnum]
+
+
+export const OnboardingStateScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  status: 'status',
+  selectedPath: 'selectedPath',
+  difficulties: 'difficulties',
+  rankedDifficulties: 'rankedDifficulties',
+  behaviorPatterns: 'behaviorPatterns',
+  mappedDifficulties: 'mappedDifficulties',
+  currentStep: 'currentStep',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OnboardingStateScalarFieldEnum = (typeof OnboardingStateScalarFieldEnum)[keyof typeof OnboardingStateScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1336,6 +1428,20 @@ export type ListFloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaMode
 export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
+
+/**
+ * Reference to a field of type 'OnboardingStatus'
+ */
+export type EnumOnboardingStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OnboardingStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'OnboardingStatus[]'
+ */
+export type ListEnumOnboardingStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OnboardingStatus[]'>
+    
+
 /**
  * Batch Payload for updateMany & deleteMany & createMany
  */
@@ -1439,6 +1545,7 @@ export type GlobalOmitConfig = {
   regulationLog?: Prisma.RegulationLogOmit
   userMetrics?: Prisma.UserMetricsOmit
   brainFlag?: Prisma.BrainFlagOmit
+  onboardingState?: Prisma.OnboardingStateOmit
 }
 
 /* Types for Logging */

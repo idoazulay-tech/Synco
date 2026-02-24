@@ -58,7 +58,8 @@ export const ModelName = {
   UserSettings: 'UserSettings',
   RegulationLog: 'RegulationLog',
   UserMetrics: 'UserMetrics',
-  BrainFlag: 'BrainFlag'
+  BrainFlag: 'BrainFlag',
+  OnboardingState: 'OnboardingState'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -183,6 +184,23 @@ export const BrainFlagScalarFieldEnum = {
 } as const
 
 export type BrainFlagScalarFieldEnum = (typeof BrainFlagScalarFieldEnum)[keyof typeof BrainFlagScalarFieldEnum]
+
+
+export const OnboardingStateScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  status: 'status',
+  selectedPath: 'selectedPath',
+  difficulties: 'difficulties',
+  rankedDifficulties: 'rankedDifficulties',
+  behaviorPatterns: 'behaviorPatterns',
+  mappedDifficulties: 'mappedDifficulties',
+  currentStep: 'currentStep',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OnboardingStateScalarFieldEnum = (typeof OnboardingStateScalarFieldEnum)[keyof typeof OnboardingStateScalarFieldEnum]
 
 
 export const SortOrder = {
