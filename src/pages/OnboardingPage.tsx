@@ -1,10 +1,11 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, GripVertical, Check, MessageCircle, Zap, ChevronLeft, Sparkles } from 'lucide-react';
+import { X, GripVertical, Check, MessageCircle, Zap, ChevronLeft, Sparkles, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
@@ -174,20 +175,26 @@ const DIFFICULTIES: DifficultyDef[] = [
   },
 ];
 
-type Step = 'welcome' | 'path_select' | 'select_difficulties' | 'rank_difficulties' | 'conversation' | 'conversation_confirm' | 'mapping' | 'done';
-
-interface MappingSubStep {
-  phase: 'examples' | 'trigger' | 'reaction' | 'complete';
-}
+type Step =
+  | 'welcome'
+  | 'path_select'
+  | 'select_difficulties'
+  | 'rank_difficulties'
+  | 'conversation'
+  | 'conversation_confirm'
+  | 'mapping'
+  | 'smart_stop'
+  | 'done';
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState<Step>('welcome');
+  const [selectedPath, setSelectedPath] = useState<'quick' | 'conversation' | null>(null);
   const [selectedDifficulties, setSelectedDifficulties] = useState<string[]>([]);
   const [rankedDifficulties, setRankedDifficulties] = useState<string[]>([]);
   const [behaviorPatterns, setBehaviorPatterns] = useState<Record<string, BehaviorPattern>>({});
   const [currentMappingIndex, setCurrentMappingIndex] = useState(0);
-  const [mappingSubStep, setMappingSubStep] = useState<MappingSubStep>({ phase: 'examples' });
+  const [mappingPhase, setMappingPhase] = useState<'examples' | 'trigger' | 'reaction'>('examples');
   const [examples, setExamples] = useState(['', '']);
   const [selectedTrigger, setSelectedTrigger] = useState('');
   const [selectedReaction, setSelectedReaction] = useState('');
@@ -196,30 +203,55 @@ export default function OnboardingPage() {
   const [detectedFromConversation, setDetectedFromConversation] = useState<{ key: string; label: string }[]>([]);
   const [showSkipModal, setShowSkipModal] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [customDifficulty, setCustomDifficulty] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const answeredSteps = useRef<string[]>([]);
 
   const currentDifficulty = rankedDifficulties[currentMappingIndex];
   const currentDiffDef = DIFFICULTIES.find(d => d.key === currentDifficulty);
+  const currentDiffLabel = currentDiffDef?.label || currentDifficulty;
+
+  const customDiffDef: DifficultyDef | null = currentDifficulty && !currentDiffDef ? {
+    key: currentDifficulty,
+    label: currentDifficulty,
+    examplePrompt: `אמרת ${currentDifficulty}.\nתן לי שתי דוגמאות קצרות מהשבוע.`,
+    triggerPrompt: 'מה הסיבה העיקרית?',
+    triggers: ['לא ברור מאיפה להתחיל', 'אין אנרגיה', 'מחכה למצב רוח', 'חשש מהתוצאה', 'לא מספיק דחוף', 'משהו אחר'],
+    reactionPrompt: 'כשזה קורה אתה:',
+    reactions: ['דוחה למחר', 'עובר למשהו אחר', 'נכנס ללחץ', 'מתעלם', 'ממשיך בכוח'],
+  } : null;
+
+  const activeDiffDef = currentDiffDef || customDiffDef;
+
+  const trackStep = (stepId: string) => {
+    if (!answeredSteps.current.includes(stepId)) {
+      answeredSteps.current.push(stepId);
+    }
+  };
 
   const saveState = useCallback(async (data: Record<string, any>) => {
     try {
       await fetch('/api/onboarding/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: USER_ID, ...data }),
+        body: JSON.stringify({
+          userId: USER_ID,
+          ...data,
+        }),
       });
     } catch (e) {
-      console.error('Failed to save onboarding state:', e);
+      console.error('[Onboarding] save error:', e);
     }
   }, []);
 
-  const handleComplete = useCallback(async () => {
+  const handleComplete = useCallback(async (patterns: Record<string, BehaviorPattern>) => {
     await fetch('/api/onboarding/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: USER_ID, behaviorPatterns }),
+      body: JSON.stringify({ userId: USER_ID, behaviorPatterns: patterns }),
     });
     setStep('done');
-  }, [behaviorPatterns]);
+  }, []);
 
   const handleSkip = useCallback(async () => {
     await fetch('/api/onboarding/skip', {
@@ -249,11 +281,13 @@ export default function OnboardingPage() {
         setDetectedFromConversation(data.labels);
         setSelectedDifficulties(data.detectedDifficulties);
         setStep('conversation_confirm');
+        trackStep('conversation');
+        saveState({ selectedPath: 'conversation', currentStep: 'conversation_confirm' });
       }
     } catch (e) {
-      console.error('Conversation error:', e);
+      console.error('[Onboarding] conversation error:', e);
     }
-  }, [conversationText]);
+  }, [conversationText, saveState]);
 
   const toggleDifficulty = (key: string) => {
     setSelectedDifficulties(prev =>
@@ -261,20 +295,33 @@ export default function OnboardingPage() {
     );
   };
 
+  const addCustomDifficulty = () => {
+    if (customDifficulty.trim()) {
+      const key = `custom_${customDifficulty.trim().replace(/\s+/g, '_')}`;
+      if (!selectedDifficulties.includes(key)) {
+        setSelectedDifficulties(prev => [...prev, key]);
+      }
+      setCustomDifficulty('');
+      setShowCustomInput(false);
+    }
+  };
+
   const moveToRanking = () => {
     setRankedDifficulties([...selectedDifficulties]);
     setStep('rank_difficulties');
+    trackStep('select_difficulties');
     saveState({ difficulties: selectedDifficulties, currentStep: 'rank_difficulties' });
   };
 
-  const moveToMapping = () => {
-    setCurrentMappingIndex(0);
-    setMappingSubStep({ phase: 'examples' });
+  const startMapping = (index: number) => {
+    setCurrentMappingIndex(index);
+    setMappingPhase('examples');
     setExamples(['', '']);
     setSelectedTrigger('');
     setSelectedReaction('');
     setStep('mapping');
-    saveState({ rankedDifficulties, currentStep: 'mapping' });
+    trackStep('rank_difficulties');
+    saveState({ rankedDifficulties, currentStep: 'mapping', mappedDifficulties: Object.keys(behaviorPatterns) });
   };
 
   const finishCurrentMapping = () => {
@@ -285,11 +332,28 @@ export default function OnboardingPage() {
     };
     const updated = { ...behaviorPatterns, [currentDifficulty]: pattern };
     setBehaviorPatterns(updated);
+    trackStep(`mapping_${currentDifficulty}`);
 
-    if (currentMappingIndex === 0 && rankedDifficulties.length > 1) {
-      handleComplete();
+    saveState({
+      behaviorPatterns: updated,
+      mappedDifficulties: Object.keys(updated),
+      currentStep: 'smart_stop',
+    });
+
+    const unmappedCount = rankedDifficulties.filter(k => !updated[k]).length;
+    if (unmappedCount > 0) {
+      setStep('smart_stop');
     } else {
-      handleComplete();
+      handleComplete(updated);
+    }
+  };
+
+  const continueToNextMapping = () => {
+    const nextIndex = rankedDifficulties.findIndex((k, i) => i > currentMappingIndex && !behaviorPatterns[k]);
+    if (nextIndex !== -1) {
+      startMapping(nextIndex);
+    } else {
+      handleComplete(behaviorPatterns);
     }
   };
 
@@ -304,6 +368,17 @@ export default function OnboardingPage() {
     setDraggedIndex(index);
   };
   const handleDragEnd = () => setDraggedIndex(null);
+
+  const getDiffLabel = (key: string) => {
+    const def = DIFFICULTIES.find(d => d.key === key);
+    if (def) return def.label;
+    if (key.startsWith('custom_')) return key.replace('custom_', '').replace(/_/g, ' ');
+    return key;
+  };
+
+  const mappedCount = Object.keys(behaviorPatterns).length;
+  const nextUnmappedKey = rankedDifficulties.find((k, i) => i > currentMappingIndex && !behaviorPatterns[k]);
+  const nextUnmappedLabel = nextUnmappedKey ? getDiffLabel(nextUnmappedKey) : '';
 
   const pageTransition = {
     initial: { opacity: 0, y: 20 },
@@ -363,12 +438,14 @@ export default function OnboardingPage() {
                 <div className="text-center space-y-2">
                   <h2 className="text-xl font-bold" data-testid="text-path-title">בוא נכיר</h2>
                   <p className="text-muted-foreground">אני הולך להכיר את הדרך שבה אתה עובד. אין פתרונות עדיין — רק להבין דפוסים.</p>
-                  <p className="text-muted-foreground font-medium mt-2">איך אתה רוצה להתחיל?</p>
+                  <p className="text-sm text-muted-foreground mt-1">יש לי רשימה רחבה של קשיים נפוצים בניהול עצמי. אתה לא צריך להתאים את עצמך אליה — אתה יכול גם לכתוב במילים שלך.</p>
+                  <p className="text-muted-foreground font-medium mt-3">איך אתה רוצה להתחיל?</p>
                 </div>
                 <div className="space-y-3">
                   <Card
                     className="cursor-pointer hover:border-primary transition-colors"
                     onClick={() => {
+                      setSelectedPath('conversation');
                       setStep('conversation');
                       saveState({ selectedPath: 'conversation', currentStep: 'conversation' });
                     }}
@@ -387,6 +464,7 @@ export default function OnboardingPage() {
                   <Card
                     className="cursor-pointer hover:border-primary transition-colors"
                     onClick={() => {
+                      setSelectedPath('quick');
                       setStep('select_difficulties');
                       saveState({ selectedPath: 'quick', currentStep: 'select_difficulties' });
                     }}
@@ -438,19 +516,36 @@ export default function OnboardingPage() {
 
             {step === 'conversation_confirm' && (
               <motion.div key="conversation_confirm" {...pageTransition} className="space-y-6">
-                <div className="text-center space-y-2">
+                <div className="space-y-3 text-right">
                   <p className="text-muted-foreground" data-testid="text-conversation-reflection">{conversationReflection}</p>
-                  <p className="font-medium mt-3">זיהיתי את הדפוסים הבאים:</p>
+                  <p className="font-medium">זה נשמע כמו:</p>
                 </div>
                 <div className="space-y-2">
                   {detectedFromConversation.map(d => (
-                    <div key={d.key} className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20">
-                      <Check className="w-4 h-4 text-primary" />
+                    <button
+                      key={d.key}
+                      onClick={() => toggleDifficulty(d.key)}
+                      className={cn(
+                        'w-full flex items-center gap-2 p-3 rounded-xl border text-right transition-all',
+                        selectedDifficulties.includes(d.key)
+                          ? 'bg-primary/10 border-primary'
+                          : 'bg-card border-border'
+                      )}
+                      data-testid={`button-confirm-${d.key}`}
+                    >
+                      <div className={cn(
+                        'w-5 h-5 rounded-md border flex items-center justify-center shrink-0',
+                        selectedDifficulties.includes(d.key)
+                          ? 'bg-primary border-primary'
+                          : 'border-muted-foreground/30'
+                      )}>
+                        {selectedDifficulties.includes(d.key) && <Check className="w-3 h-3 text-white" />}
+                      </div>
                       <span>{d.label}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
-                <p className="text-sm text-muted-foreground text-center">אפשר להוסיף עוד או להמשיך עם מה שנבחר.</p>
+                <p className="text-sm text-muted-foreground text-center">מה הכי קרוב? אפשר להוסיף עוד או להמשיך.</p>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -465,6 +560,7 @@ export default function OnboardingPage() {
                   </Button>
                   <Button
                     className="flex-1"
+                    disabled={selectedDifficulties.length === 0}
                     onClick={moveToRanking}
                     data-testid="button-continue-ranking"
                   >
@@ -478,9 +574,9 @@ export default function OnboardingPage() {
               <motion.div key="select_difficulties" {...pageTransition} className="space-y-6">
                 <div className="text-center space-y-2">
                   <h2 className="text-xl font-bold" data-testid="text-difficulties-title">מה מאתגר אותך?</h2>
-                  <p className="text-muted-foreground text-sm">אפשר לבחור כמה שרוצים.</p>
+                  <p className="text-muted-foreground text-sm">בחר מה רלוונטי כרגע (אפשר כמה).</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto pb-2">
+                <div className="grid grid-cols-2 gap-2 max-h-[45vh] overflow-y-auto pb-2">
                   {DIFFICULTIES.map(d => {
                     const isSelected = selectedDifficulties.includes(d.key);
                     return (
@@ -499,7 +595,49 @@ export default function OnboardingPage() {
                       </button>
                     );
                   })}
+                  {selectedDifficulties.filter(k => k.startsWith('custom_')).map(k => (
+                    <button
+                      key={k}
+                      onClick={() => toggleDifficulty(k)}
+                      className="p-3 rounded-xl text-sm text-right border bg-primary/10 border-primary text-primary font-medium transition-all"
+                      data-testid={`button-difficulty-${k}`}
+                    >
+                      {k.replace('custom_', '').replace(/_/g, ' ')}
+                    </button>
+                  ))}
                 </div>
+
+                {!showCustomInput ? (
+                  <button
+                    onClick={() => setShowCustomInput(true)}
+                    className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    data-testid="button-show-custom"
+                  >
+                    <Plus className="w-4 h-4" />
+                    אחר — לכתוב במילים שלי
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      value={customDifficulty}
+                      onChange={(e) => setCustomDifficulty(e.target.value)}
+                      placeholder="תכתוב במילים שלך..."
+                      className="text-right flex-1"
+                      dir="rtl"
+                      onKeyDown={(e) => e.key === 'Enter' && addCustomDifficulty()}
+                      data-testid="input-custom-difficulty"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={addCustomDifficulty}
+                      disabled={!customDifficulty.trim()}
+                      data-testid="button-add-custom"
+                    >
+                      הוסף
+                    </Button>
+                  </div>
+                )}
+
                 <Button
                   className="w-full"
                   disabled={selectedDifficulties.length === 0}
@@ -518,45 +656,42 @@ export default function OnboardingPage() {
                   <p className="text-muted-foreground text-sm">גרור מהכי משמעותי למעלה לפחות משמעותי למטה.</p>
                 </div>
                 <div className="space-y-2">
-                  {rankedDifficulties.map((key, index) => {
-                    const def = DIFFICULTIES.find(d => d.key === key);
-                    return (
-                      <div
-                        key={key}
-                        draggable
-                        onDragStart={() => handleDragStart(index)}
-                        onDragOver={(e) => handleDragOver(e, index)}
-                        onDragEnd={handleDragEnd}
-                        className={cn(
-                          'flex items-center gap-3 p-3 rounded-xl border bg-card cursor-grab active:cursor-grabbing transition-all',
-                          draggedIndex === index && 'opacity-50 border-primary'
-                        )}
-                        data-testid={`rank-item-${key}`}
-                      >
-                        <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm font-medium text-muted-foreground w-6">{index + 1}.</span>
-                        <span className="flex-1">{def?.label || key}</span>
-                      </div>
-                    );
-                  })}
+                  {rankedDifficulties.map((key, index) => (
+                    <div
+                      key={key}
+                      draggable
+                      onDragStart={() => handleDragStart(index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDragEnd={handleDragEnd}
+                      className={cn(
+                        'flex items-center gap-3 p-3 rounded-xl border bg-card cursor-grab active:cursor-grabbing transition-all',
+                        draggedIndex === index && 'opacity-50 border-primary'
+                      )}
+                      data-testid={`rank-item-${key}`}
+                    >
+                      <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-medium text-muted-foreground w-6">{index + 1}.</span>
+                      <span className="flex-1">{getDiffLabel(key)}</span>
+                    </div>
+                  ))}
                 </div>
-                <Button className="w-full" onClick={moveToMapping} data-testid="button-start-mapping">
+                <Button className="w-full" onClick={() => startMapping(0)} data-testid="button-start-mapping">
                   בוא נתחיל להכיר
                 </Button>
               </motion.div>
             )}
 
-            {step === 'mapping' && currentDiffDef && (
-              <motion.div key={`mapping-${currentDifficulty}-${mappingSubStep.phase}`} {...pageTransition} className="space-y-6">
+            {step === 'mapping' && activeDiffDef && (
+              <motion.div key={`mapping-${currentDifficulty}-${mappingPhase}`} {...pageTransition} className="space-y-6">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">
-                    {currentMappingIndex + 1} / {Math.min(rankedDifficulties.length, 1)}
+                    {mappedCount + 1} / {rankedDifficulties.length}
                   </span>
-                  {mappingSubStep.phase !== 'examples' && (
+                  {mappingPhase !== 'examples' && (
                     <button
                       onClick={() => {
-                        if (mappingSubStep.phase === 'trigger') setMappingSubStep({ phase: 'examples' });
-                        else if (mappingSubStep.phase === 'reaction') setMappingSubStep({ phase: 'trigger' });
+                        if (mappingPhase === 'trigger') setMappingPhase('examples');
+                        else if (mappingPhase === 'reaction') setMappingPhase('trigger');
                       }}
                       className="text-xs text-muted-foreground flex items-center gap-1"
                       data-testid="button-back-mapping"
@@ -567,10 +702,10 @@ export default function OnboardingPage() {
                   )}
                 </div>
 
-                {mappingSubStep.phase === 'examples' && (
+                {mappingPhase === 'examples' && (
                   <div className="space-y-4">
                     <div className="bg-muted/50 rounded-xl p-4">
-                      <p className="whitespace-pre-line text-sm" data-testid="text-example-prompt">{currentDiffDef.examplePrompt}</p>
+                      <p className="whitespace-pre-line text-sm" data-testid="text-example-prompt">{activeDiffDef.examplePrompt}</p>
                     </div>
                     <div className="space-y-3">
                       <Textarea
@@ -593,7 +728,7 @@ export default function OnboardingPage() {
                     <Button
                       className="w-full"
                       disabled={!examples[0].trim()}
-                      onClick={() => setMappingSubStep({ phase: 'trigger' })}
+                      onClick={() => setMappingPhase('trigger')}
                       data-testid="button-next-trigger"
                     >
                       המשך
@@ -601,13 +736,13 @@ export default function OnboardingPage() {
                   </div>
                 )}
 
-                {mappingSubStep.phase === 'trigger' && (
+                {mappingPhase === 'trigger' && (
                   <div className="space-y-4">
                     <div className="bg-muted/50 rounded-xl p-4">
-                      <p className="text-sm font-medium" data-testid="text-trigger-prompt">{currentDiffDef.triggerPrompt}</p>
+                      <p className="text-sm font-medium" data-testid="text-trigger-prompt">{activeDiffDef.triggerPrompt}</p>
                     </div>
                     <div className="space-y-2">
-                      {currentDiffDef.triggers.map(trigger => (
+                      {activeDiffDef.triggers.map(trigger => (
                         <button
                           key={trigger}
                           onClick={() => setSelectedTrigger(trigger)}
@@ -626,7 +761,7 @@ export default function OnboardingPage() {
                     <Button
                       className="w-full"
                       disabled={!selectedTrigger}
-                      onClick={() => setMappingSubStep({ phase: 'reaction' })}
+                      onClick={() => setMappingPhase('reaction')}
                       data-testid="button-next-reaction"
                     >
                       המשך
@@ -634,13 +769,13 @@ export default function OnboardingPage() {
                   </div>
                 )}
 
-                {mappingSubStep.phase === 'reaction' && (
+                {mappingPhase === 'reaction' && (
                   <div className="space-y-4">
                     <div className="bg-muted/50 rounded-xl p-4">
-                      <p className="text-sm font-medium" data-testid="text-reaction-prompt">{currentDiffDef.reactionPrompt}</p>
+                      <p className="text-sm font-medium" data-testid="text-reaction-prompt">{activeDiffDef.reactionPrompt}</p>
                     </div>
                     <div className="space-y-2">
-                      {currentDiffDef.reactions.map(reaction => (
+                      {activeDiffDef.reactions.map(reaction => (
                         <button
                           key={reaction}
                           onClick={() => setSelectedReaction(reaction)}
@@ -662,10 +797,50 @@ export default function OnboardingPage() {
                       onClick={finishCurrentMapping}
                       data-testid="button-finish-mapping"
                     >
-                      הבנתי אותך. רשמתי. ✓
+                      הבנתי אותך. רשמתי.
                     </Button>
                   </div>
                 )}
+              </motion.div>
+            )}
+
+            {step === 'smart_stop' && (
+              <motion.div key="smart_stop" {...pageTransition} className="space-y-6 text-center">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-green-500/10 flex items-center justify-center">
+                  <Check className="w-8 h-8 text-green-500" />
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-lg font-bold" data-testid="text-smart-stop-title">
+                    הבנתי. רשמתי.
+                  </h2>
+                  <p className="text-muted-foreground text-sm">
+                    מיפיתי את {currentDiffLabel}.
+                  </p>
+                </div>
+                {nextUnmappedKey && (
+                  <p className="text-muted-foreground">
+                    רוצה שנמפה גם את <span className="font-medium text-foreground">{nextUnmappedLabel}</span> עכשיו, או שנתחיל לעבוד ונעמיק בהמשך?
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {nextUnmappedKey && (
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={continueToNextMapping}
+                      data-testid="button-map-next"
+                    >
+                      להעמיק בקושי הבא
+                    </Button>
+                  )}
+                  <Button
+                    className="w-full"
+                    onClick={() => handleComplete(behaviorPatterns)}
+                    data-testid="button-start-working"
+                  >
+                    בוא נתחיל לעבוד
+                  </Button>
+                </div>
               </motion.div>
             )}
 
@@ -698,7 +873,7 @@ export default function OnboardingPage() {
           <DialogHeader>
             <DialogTitle data-testid="text-skip-title">רוצה לעצור את ההיכרות כאן?</DialogTitle>
             <DialogDescription>
-              אפשר להתחיל לעבוד עכשיו. מה שכבר ענית נשמר, ואני אמשיך להכיר אותך תוך כדי תנועה.
+              אפשר גם להתחיל לעבוד עכשיו. מה שכבר ענית נשמר, ואני אכיר את הדרך שלך תוך כדי תנועה.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 mt-4">
@@ -718,6 +893,9 @@ export default function OnboardingPage() {
               ממשיכים בהיכרות
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            אפשר לחזור להשלמת ההיכרות בכל רגע.
+          </p>
         </DialogContent>
       </Dialog>
     </div>

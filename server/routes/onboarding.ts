@@ -37,13 +37,15 @@ router.post('/complete', async (req, res) => {
     const { userId, behaviorPatterns } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId is required' });
 
+    const mapped = behaviorPatterns ? Object.keys(behaviorPatterns) : [];
+
     const state = await prisma.onboardingState.upsert({
       where: { userId },
-      create: { userId, status: 'COMPLETED', behaviorPatterns },
-      update: { status: 'COMPLETED', behaviorPatterns },
+      create: { userId, status: 'COMPLETED', behaviorPatterns, mappedDifficulties: mapped },
+      update: { status: 'COMPLETED', behaviorPatterns, mappedDifficulties: mapped },
     });
 
-    if (behaviorPatterns) {
+    if (behaviorPatterns && Object.keys(behaviorPatterns).length > 0) {
       const patternSummary = Object.entries(behaviorPatterns)
         .map(([key, val]: [string, any]) => `${key}: ${val.triggerType || ''} → ${val.reactionPattern || ''}`)
         .join('; ');
@@ -64,6 +66,8 @@ router.post('/skip', async (req, res) => {
     const { userId, behaviorPatterns, difficulties, rankedDifficulties } = req.body;
     if (!userId) return res.status(400).json({ error: 'userId is required' });
 
+    const mapped = behaviorPatterns ? Object.keys(behaviorPatterns) : [];
+
     const state = await prisma.onboardingState.upsert({
       where: { userId },
       create: {
@@ -72,12 +76,14 @@ router.post('/skip', async (req, res) => {
         behaviorPatterns,
         difficulties,
         rankedDifficulties,
+        mappedDifficulties: mapped,
       },
       update: {
         status: 'SKIPPED_PARTIAL',
         behaviorPatterns,
         difficulties,
         rankedDifficulties,
+        mappedDifficulties: mapped,
       },
     });
 
@@ -164,6 +170,34 @@ router.post('/conversation', async (req, res) => {
     });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to process conversation', details: error.message });
+  }
+});
+
+router.get('/should-prompt/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!userId) return res.status(400).json({ error: 'userId is required' });
+
+    const state = await prisma.onboardingState.findUnique({ where: { userId } });
+    if (!state || state.status !== 'SKIPPED_PARTIAL') {
+      return res.json({ shouldPrompt: false });
+    }
+
+    const selected = (state.difficulties as string[]) || [];
+    const mapped = (state.mappedDifficulties as string[]) || [];
+    const unmapped = selected.filter(d => !mapped.includes(d));
+
+    if (unmapped.length === 0) {
+      return res.json({ shouldPrompt: false });
+    }
+
+    res.json({
+      shouldPrompt: true,
+      unmappedCount: unmapped.length,
+      message: 'רוצה להשלים עוד 2 שאלות קצרות כדי שאדייק אותך יותר?',
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to check prompt', details: error.message });
   }
 });
 
