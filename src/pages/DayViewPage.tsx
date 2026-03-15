@@ -488,7 +488,7 @@ const DayViewPage = () => {
           })).filter(d => d.tasks.length > 0);
           if (allDayByDate.length === 0) return null;
           return (
-            <div className="border-b border-border bg-amber-50/50 dark:bg-amber-900/10 px-3 py-2 flex gap-2 flex-wrap" data-testid="allday-strip">
+            <div className="sticky top-0 z-10 border-b border-border bg-amber-50/50 dark:bg-amber-900/10 px-3 py-2 flex gap-2 flex-wrap" data-testid="allday-strip">
               <div className="w-14 flex-shrink-0 flex items-center">
                 <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase">כל היום</span>
               </div>

@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Archive, Plus, ChevronLeft, Clock, Tag, Folder, 
-  MoreVertical, Trash2, Edit2, Check, TrendingUp, History,
+  MoreVertical, Trash2, Edit2, Check, TrendingUp,
   ChevronDown, ChevronUp
 } from 'lucide-react';
-import { format, setHours, setMinutes, startOfDay } from 'date-fns';
+import { format, setHours, setMinutes, startOfDay, addHours } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useTaskStore } from '@/store/taskStore';
@@ -79,7 +79,7 @@ const StandbyPage = () => {
   const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
-    if (localStorage.getItem('synco_cabinet_seeded')) return;
+    if (localStorage.getItem('cabinet_seeded')) return;
     if (templateCategories.length > 0) return;
 
     const CABINET_SEED: { name: string; color: string; templates: { title: string; duration: number }[] }[] = [
@@ -114,21 +114,13 @@ const StandbyPage = () => {
       });
     });
 
-    localStorage.setItem('synco_cabinet_seeded', '1');
+    localStorage.setItem('cabinet_seeded', '1');
   }, []);
 
   const sortedTemplates = getTemplatesSorted();
   
-  const mostUsedTemplates = useMemo(() => 
-    [...templates].sort((a, b) => b.usageCount - a.usageCount).slice(0, 5),
-    [templates]
-  );
-  
-  const recentTemplates = useMemo(() => 
-    [...templates]
-      .filter(t => t.lastUsedAt)
-      .sort((a, b) => (b.lastUsedAt?.getTime() || 0) - (a.lastUsedAt?.getTime() || 0))
-      .slice(0, 5),
+  const frequentTemplates = useMemo(() => 
+    [...templates].sort((a, b) => b.usageCount - a.usageCount).slice(0, 10),
     [templates]
   );
   
@@ -170,6 +162,16 @@ const StandbyPage = () => {
     setScheduleHour(now.getHours());
     setScheduleMinute(Math.floor(now.getMinutes() / 5) * 5);
     setShowScheduleDialog(true);
+  };
+
+  const quickSchedule = (template: TaskTemplate, offsetHours: number) => {
+    const startTime = offsetHours === 0 ? new Date() : addHours(new Date(), offsetHours);
+    scheduleTemplate(template.id, startTime);
+    toast({ 
+      title: 'הועתק ליומן', 
+      description: `"${template.title}" נוסף ליומן` 
+    });
+    navigate('/day');
   };
 
   const openCategoryDialog = (category?: TemplateCategory) => {
@@ -369,42 +371,75 @@ const StandbyPage = () => {
             </motion.div>
           ) : (
             <div className="space-y-0">
-              {/* Top shelf - Statistics sections side by side */}
-              <div className="bg-muted/30 rounded-t-xl border-x border-t border-border">
-                <div className="grid grid-cols-2 divide-x divide-border">
-                  {/* Most Used Section */}
-                  <section className="p-3">
-                    <h2 className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-muted-foreground">
-                      <TrendingUp className="w-4 h-4" />
-                      הכי בשימוש
-                    </h2>
-                    <div className="space-y-2">
-                      {mostUsedTemplates.length > 0 ? (
-                        mostUsedTemplates.map(template => (
-                          <TemplateCard key={template.id} template={template} compact />
-                        ))
-                      ) : (
-                        <p className="text-xs text-muted-foreground py-4 text-center">אין נתונים</p>
-                      )}
-                    </div>
-                  </section>
-
-                  {/* Recent Section */}
-                  <section className="p-3">
-                    <h2 className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-muted-foreground">
-                      <History className="w-4 h-4" />
-                      שימוש אחרון
-                    </h2>
-                    <div className="space-y-2">
-                      {recentTemplates.length > 0 ? (
-                        recentTemplates.map(template => (
-                          <TemplateCard key={template.id} template={template} compact />
-                        ))
-                      ) : (
-                        <p className="text-xs text-muted-foreground py-4 text-center">אין נתונים</p>
-                      )}
-                    </div>
-                  </section>
+              {/* Top shelf - Frequent templates */}
+              <div className="bg-muted/30 rounded-t-xl border-x border-t border-border p-3">
+                <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                  שכיחות
+                </h2>
+                <div className="space-y-2">
+                  {frequentTemplates.length > 0 ? (
+                    frequentTemplates.map(template => (
+                      <Card key={template.id} className="p-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{template.title}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {formatDuration(template.duration)}
+                              </span>
+                              {template.usageCount > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                  x{template.usageCount}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs px-2"
+                              onClick={() => quickSchedule(template, 0)}
+                              data-testid={`quick-now-${template.id}`}
+                            >
+                              עכשיו
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs px-2"
+                              onClick={() => quickSchedule(template, 1)}
+                              data-testid={`quick-1h-${template.id}`}
+                            >
+                              +1h
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs px-2"
+                              onClick={() => quickSchedule(template, 2)}
+                              data-testid={`quick-2h-${template.id}`}
+                            >
+                              +2h
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs px-1.5"
+                              onClick={() => openScheduleDialog(template)}
+                              data-testid={`quick-custom-${template.id}`}
+                            >
+                              <Clock className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground py-4 text-center">אין נתונים עדיין</p>
+                  )}
                 </div>
               </div>
 
@@ -436,9 +471,11 @@ const StandbyPage = () => {
                     
                     return (
                       <div key={category.id} className="rounded-lg border border-border overflow-hidden">
-                        <button
+                        <div
                           onClick={() => toggleCategory(category.id)}
-                          className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+                          className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                          role="button"
+                          tabIndex={0}
                         >
                           <div className="flex items-center gap-2">
                             <div 
@@ -462,6 +499,13 @@ const StandbyPage = () => {
                                   <Edit2 className="w-4 h-4 mr-2" />
                                   עריכה
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {
+                                  setTemplateCategoryId(category.id);
+                                  openTemplateDialog();
+                                }}>
+                                  <Plus className="w-4 h-4 mr-2" />
+                                  הוסף משימה
+                                </DropdownMenuItem>
                                 <DropdownMenuItem 
                                   onClick={() => handleDeleteCategory(category)}
                                   className="text-destructive"
@@ -477,7 +521,7 @@ const StandbyPage = () => {
                               <ChevronDown className="w-4 h-4 text-muted-foreground" />
                             )}
                           </div>
-                        </button>
+                        </div>
                         
                         <AnimatePresence>
                           {isExpanded && (
