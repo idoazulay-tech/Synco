@@ -534,6 +534,47 @@ const DayViewPage = () => {
                   })}
 
                   <div className="absolute top-0 left-0 right-0 bottom-0 pointer-events-none">
+                    {(() => {
+                      const sortedTasks = [...tasks].sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+                      const freeSlots: { startMin: number; endMin: number }[] = [];
+                      for (let i = 0; i < sortedTasks.length - 1; i++) {
+                        const gapStart = differenceInMinutes(sortedTasks[i].endTime, dayStart);
+                        const gapEnd = differenceInMinutes(sortedTasks[i + 1].startTime, dayStart);
+                        if (gapEnd - gapStart >= 30) {
+                          freeSlots.push({ startMin: gapStart, endMin: gapEnd });
+                        }
+                      }
+                      return freeSlots.map((slot, idx) => {
+                        const top = (slot.startMin / 60) * HOUR_HEIGHT;
+                        const height = ((slot.endMin - slot.startMin) / 60) * HOUR_HEIGHT;
+                        const gapMinutes = slot.endMin - slot.startMin;
+                        const hours = Math.floor(gapMinutes / 60);
+                        const mins = gapMinutes % 60;
+                        const label = hours > 0
+                          ? (mins > 0 ? `${hours}:${mins.toString().padStart(2, '0')}` : `${hours} שע'`)
+                          : `${mins} דק'`;
+                        return (
+                          <div
+                            key={`free-${idx}`}
+                            className="absolute left-1 right-1 flex items-center justify-center pointer-events-auto cursor-pointer rounded-lg border border-dashed border-green-400/50 bg-green-50/30 dark:bg-green-900/10 hover:bg-green-100/50 dark:hover:bg-green-900/20 transition-colors"
+                            style={{ top: `${top}px`, height: `${Math.max(height, 20)}px` }}
+                            onClick={() => {
+                              const slotHour = Math.floor(slot.startMin / 60);
+                              const slotMinute = Math.floor((slot.startMin % 60) / 15) * 15;
+                              setCreateTime({ date, hour: slotHour, minute: slotMinute });
+                              setNewTaskTitle('');
+                              setNewTaskDuration(Math.min(gapMinutes, 60));
+                              setShowCreateDialog(true);
+                            }}
+                            data-testid={`free-slot-${idx}`}
+                          >
+                            <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                              {label} פנוי
+                            </span>
+                          </div>
+                        );
+                      });
+                    })()}
                     {positions.map((pos) => {
                       const isActive = currentTask?.id === pos.task.id;
                       const isDragging = dragState?.taskId === pos.task.id;

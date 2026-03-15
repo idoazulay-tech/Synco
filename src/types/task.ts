@@ -35,6 +35,9 @@ export interface HistoryEntry {
   newValue?: string;
 }
 
+export type TaskPriority = 'low' | 'medium' | 'high';
+export type TaskFlexibility = 'fixed' | 'flexible' | 'anytime';
+
 export interface Task {
   id: string;
   title: string;
@@ -47,6 +50,9 @@ export interface Task {
   schedulingStatus?: SchedulingStatus; // 'pending' if missing info, 'scheduled' when complete
   timeConstraintType?: TimeConstraintType; // Time Constraint Layer classification
   createdFrom?: CreatedFrom; // how this task was created
+  priority?: TaskPriority;
+  flexibility?: TaskFlexibility;
+  canMove?: boolean;
   tags: Tag[];
   images?: string[];
   isRecurring?: boolean;

@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Mic, MicOff, MapPin, Clock, Tag, FileText, X, Calendar, Archive, AlertCircle } from 'lucide-react';
+import { ArrowRight, Mic, MicOff, MapPin, Clock, Tag, FileText, X, Calendar, Archive, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { format, setHours, setMinutes, startOfDay } from 'date-fns';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
@@ -52,12 +52,13 @@ const AddTaskPage = () => {
   });
   const [durationMinutes, setDurationMinutes] = useState(60);
   
-  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showStartPicker, setShowStartPicker] = useState(true);
   const [showEndPicker, setShowEndPicker] = useState(false);
   
   const [selectedTags, setSelectedTags] = useState<TagType[]>([]);
   const [isListening, setIsListening] = useState(false);
   const [conflicts, setConflicts] = useState<Task[]>([]);
+  const [showExtraOptions, setShowExtraOptions] = useState(false);
 
   const endTime = useMemo(() => {
     const totalMinutes = startHour * 60 + startMinute + durationMinutes;
@@ -482,12 +483,12 @@ const AddTaskPage = () => {
                 <span className="text-sm font-medium">קטגוריה</span>
               </div>
               
-              <Select value={selectedCategoryId || ''} onValueChange={(v) => setSelectedCategoryId(v || undefined)}>
+              <Select value={selectedCategoryId || 'none'} onValueChange={(v) => setSelectedCategoryId(v === 'none' ? undefined : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="בחר קטגוריה" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">ללא קטגוריה</SelectItem>
+                  <SelectItem value="none">ללא קטגוריה</SelectItem>
                   {templateCategories.map(cat => (
                     <SelectItem key={cat.id} value={cat.id}>
                       <div className="flex items-center gap-2">
@@ -501,79 +502,87 @@ const AddTaskPage = () => {
             </motion.div>
           )}
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="space-y-2"
+          <button
+            onClick={() => setShowExtraOptions(!showExtraOptions)}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors py-2"
+            data-testid="button-toggle-extra-options"
           >
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MapPin className="w-4 h-4" />
-              <span className="text-sm font-medium">מיקום</span>
-            </div>
-            <Input
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="היכן?"
-              data-testid="input-location"
-            />
-          </motion.div>
+            {showExtraOptions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            <span className="font-medium">אפשרויות נוספות</span>
+            {(location || description || selectedTags.length > 0) && (
+              <span className="w-2 h-2 rounded-full bg-primary" />
+            )}
+          </button>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-2"
-          >
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <FileText className="w-4 h-4" />
-              <span className="text-sm font-medium">תיאור</span>
-            </div>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="פרטים נוספים..."
-              rows={3}
-              data-testid="input-description"
-            />
-          </motion.div>
+          <AnimatePresence>
+            {showExtraOptions && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden space-y-4"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <MapPin className="w-4 h-4" />
+                    <span className="text-sm font-medium">מיקום</span>
+                  </div>
+                  <Input
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="היכן?"
+                    data-testid="input-location"
+                  />
+                </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.25 }}
-            className="space-y-3"
-          >
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Tag className="w-4 h-4" />
-              <span className="text-sm font-medium">תגיות</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {DEFAULT_TAGS.map((tag) => {
-                const isSelected = selectedTags.some(t => t.id === tag.id);
-                return (
-                  <button
-                    key={tag.id}
-                    onClick={() => toggleTag(tag)}
-                    className={cn(
-                      'inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all',
-                      isSelected 
-                        ? 'ring-2 ring-offset-2 ring-primary' 
-                        : 'opacity-60 hover:opacity-100'
-                    )}
-                    style={{ 
-                      backgroundColor: `${tag.color}${isSelected ? '30' : '15'}`,
-                      color: tag.color,
-                    }}
-                    data-testid={`button-tag-${tag.id}`}
-                  >
-                    {tag.name}
-                    {isSelected && <X className="w-3 h-3" />}
-                  </button>
-                );
-              })}
-            </div>
-          </motion.div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <FileText className="w-4 h-4" />
+                    <span className="text-sm font-medium">תיאור</span>
+                  </div>
+                  <Textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="פרטים נוספים..."
+                    rows={3}
+                    data-testid="input-description"
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Tag className="w-4 h-4" />
+                    <span className="text-sm font-medium">תגיות</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {DEFAULT_TAGS.map((tag) => {
+                      const isSelected = selectedTags.some(t => t.id === tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          onClick={() => toggleTag(tag)}
+                          className={cn(
+                            'inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all',
+                            isSelected 
+                              ? 'ring-2 ring-offset-2 ring-primary' 
+                              : 'opacity-60 hover:opacity-100'
+                          )}
+                          style={{ 
+                            backgroundColor: `${tag.color}${isSelected ? '30' : '15'}`,
+                            color: tag.color,
+                          }}
+                          data-testid={`button-tag-${tag.id}`}
+                        >
+                          {tag.name}
+                          {isSelected && <X className="w-3 h-3" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <div className="fixed bottom-0 inset-x-0 p-4 bg-gradient-to-t from-background via-background to-transparent">

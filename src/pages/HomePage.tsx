@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Calendar, Inbox, Clock } from 'lucide-react';
+import { Calendar, Inbox, Clock, Plus, Check, X, Eye } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { format, differenceInMinutes, differenceInHours, differenceInDays, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -169,7 +170,16 @@ const HomePage = () => {
               <Inbox className="w-12 h-12 text-muted-foreground" />
             </div>
             <h1 className="text-2xl font-bold text-foreground mb-2">אין משימה פעילה</h1>
-            <p className="text-muted-foreground mb-8">הזמן שלך פנוי כרגע</p>
+            <p className="text-muted-foreground mb-6">הזמן שלך פנוי כרגע</p>
+            <Button
+              size="lg"
+              onClick={() => navigate('/add')}
+              className="gap-2"
+              data-testid="button-add-task-empty"
+            >
+              <Plus className="w-5 h-5" />
+              הוסף משימה
+            </Button>
           </motion.div>
 
           {nextTask && (
@@ -238,6 +248,35 @@ const HomePage = () => {
               onClick={() => navigate(`/task/${currentTask.id}`)}
               onNavigate={() => navigate('/day')}
             />
+
+            <div className="flex items-center gap-3 mt-4" dir="rtl">
+              <Button
+                variant="default"
+                className="flex-1 gap-2"
+                onClick={() => handleComplete(true)}
+                data-testid="button-complete-task"
+              >
+                <Check className="w-4 h-4" />
+                בוצע
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1 gap-2"
+                onClick={() => handleComplete(false)}
+                data-testid="button-dismiss-task"
+              >
+                <X className="w-4 h-4" />
+                דחה
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate(`/task/${currentTask.id}`)}
+                data-testid="button-task-details"
+              >
+                <Eye className="w-5 h-5" />
+              </Button>
+            </div>
           </motion.div>
         </div>
 

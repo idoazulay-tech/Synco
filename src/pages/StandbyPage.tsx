@@ -254,9 +254,10 @@ const StandbyPage = () => {
         <button
           onClick={() => openScheduleDialog(template)}
           className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors"
+          title="שבץ עכשיו"
           data-testid={`button-schedule-${template.id}`}
         >
-          <ChevronLeft className="w-5 h-5 text-primary" />
+          <Clock className="w-4 h-4 text-primary" />
         </button>
         
         <div className="flex-1 min-w-0">
@@ -557,12 +558,12 @@ const StandbyPage = () => {
 
             <div>
               <label className="text-sm font-medium">קטגוריה</label>
-              <Select value={templateCategoryId || ''} onValueChange={(v) => setTemplateCategoryId(v || undefined)}>
+              <Select value={templateCategoryId || 'none'} onValueChange={(v) => setTemplateCategoryId(v === 'none' ? undefined : v)}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="בחר קטגוריה" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">ללא קטגוריה</SelectItem>
+                  <SelectItem value="none">ללא קטגוריה</SelectItem>
                   {templateCategories.map(cat => (
                     <SelectItem key={cat.id} value={cat.id}>
                       <div className="flex items-center gap-2">
