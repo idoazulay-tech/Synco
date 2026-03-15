@@ -39,7 +39,7 @@ const TaskDetailPage = () => {
   };
 
   const handleReschedule = () => {
-    navigate(`/task/${task.id}/reschedule`);
+    navigate(`/task/${task.id}/edit`);
   };
 
   return (
@@ -237,7 +237,7 @@ const TaskDetailPage = () => {
               data-testid="button-reschedule"
             >
               <CalendarDays className="w-4 h-4" />
-              הזז קדימה
+              עריכה
             </Button>
 
             <Button 
