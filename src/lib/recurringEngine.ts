@@ -1,5 +1,5 @@
 import { Task } from '@/types/task';
-import { startOfDay, addDays, addMonths, addYears, differenceInMilliseconds, format, isBefore, isAfter, isSameDay } from 'date-fns';
+import { startOfDay, addDays, addWeeks, addMonths, addYears, differenceInMilliseconds, format, isBefore, isAfter, isSameDay } from 'date-fns';
 
 export function isRecurringOccurrence(taskId: string): boolean {
   return taskId.includes('_occ_');
@@ -8,6 +8,88 @@ export function isRecurringOccurrence(taskId: string): boolean {
 export function getMasterTaskId(taskId: string): string {
   const idx = taskId.indexOf('_occ_');
   return idx >= 0 ? taskId.substring(0, idx) : taskId;
+}
+
+function generateCandidateDates(
+  anchorDay: Date,
+  frequency: string,
+  interval: number,
+  daysOfWeek: number[] | undefined,
+  rangeEnd: Date,
+  effectiveEnd: Date,
+  maxCount: number | undefined,
+): Date[] {
+  const dates: Date[] = [];
+  let count = 0;
+  const maxIterations = 1500;
+  let iterations = 0;
+
+  if (frequency === 'daily') {
+    let current = anchorDay;
+    while (iterations < maxIterations) {
+      iterations++;
+      if (isAfter(current, effectiveEnd) || isAfter(current, rangeEnd)) break;
+      if (maxCount && count >= maxCount) break;
+      dates.push(current);
+      count++;
+      current = addDays(current, interval);
+    }
+  } else if (frequency === 'weekly') {
+    if (daysOfWeek && daysOfWeek.length > 0) {
+      let weekStart = startOfDay(anchorDay);
+      const anchorDayOfWeek = anchorDay.getDay();
+      weekStart = addDays(weekStart, -anchorDayOfWeek);
+
+      while (iterations < maxIterations) {
+        iterations++;
+        if (isAfter(weekStart, effectiveEnd) || isAfter(weekStart, rangeEnd)) break;
+        if (maxCount && count >= maxCount) break;
+
+        for (const dow of daysOfWeek.sort((a, b) => a - b)) {
+          const candidate = addDays(weekStart, dow);
+          if (isBefore(candidate, anchorDay)) continue;
+          if (isAfter(candidate, effectiveEnd) || isAfter(candidate, rangeEnd)) break;
+          if (maxCount && count >= maxCount) break;
+          dates.push(candidate);
+          count++;
+        }
+
+        weekStart = addWeeks(weekStart, interval);
+      }
+    } else {
+      let current = anchorDay;
+      while (iterations < maxIterations) {
+        iterations++;
+        if (isAfter(current, effectiveEnd) || isAfter(current, rangeEnd)) break;
+        if (maxCount && count >= maxCount) break;
+        dates.push(current);
+        count++;
+        current = addWeeks(current, interval);
+      }
+    }
+  } else if (frequency === 'monthly') {
+    let current = anchorDay;
+    while (iterations < maxIterations) {
+      iterations++;
+      if (isAfter(current, effectiveEnd) || isAfter(current, rangeEnd)) break;
+      if (maxCount && count >= maxCount) break;
+      dates.push(current);
+      count++;
+      current = addMonths(anchorDay, count * interval);
+    }
+  } else if (frequency === 'yearly') {
+    let current = anchorDay;
+    while (iterations < maxIterations) {
+      iterations++;
+      if (isAfter(current, effectiveEnd) || isAfter(current, rangeEnd)) break;
+      if (maxCount && count >= maxCount) break;
+      dates.push(current);
+      count++;
+      current = addYears(anchorDay, count * interval);
+    }
+  }
+
+  return dates;
 }
 
 export function expandRecurring(task: Task, rangeStart: Date, rangeEnd: Date): Task[] {
@@ -20,75 +102,35 @@ export function expandRecurring(task: Task, rangeStart: Date, rangeEnd: Date): T
   const anchorDay = startOfDay(masterStart);
   const hoursOffset = masterStart.getTime() - anchorDay.getTime();
 
-  const occurrences: Task[] = [];
-  let count = 0;
-  let current = anchorDay;
-
   const effectiveEnd = endType === 'date' && endDate
     ? new Date(endDate)
     : addYears(rangeEnd, 2);
 
-  const maxIterations = 1500;
-  let iterations = 0;
+  const maxCount = endType === 'count' && endCount ? endCount : undefined;
 
-  while (iterations < maxIterations) {
-    iterations++;
+  const candidates = generateCandidateDates(
+    anchorDay, frequency, interval, daysOfWeek,
+    rangeEnd, effectiveEnd, maxCount,
+  );
 
-    if (isAfter(current, effectiveEnd) || isAfter(current, rangeEnd)) break;
-    if (endType === 'count' && endCount && count >= endCount) break;
+  const dayStartMs = startOfDay(rangeStart).getTime();
 
-    let shouldFire = false;
+  const occurrences: Task[] = [];
 
-    if (frequency === 'daily') {
-      shouldFire = true;
-    } else if (frequency === 'weekly') {
-      const dayOfWeek = current.getDay();
-      if (daysOfWeek && daysOfWeek.length > 0) {
-        shouldFire = daysOfWeek.includes(dayOfWeek);
-      } else {
-        shouldFire = dayOfWeek === anchorDay.getDay();
-      }
-    } else if (frequency === 'monthly') {
-      shouldFire = current.getDate() === anchorDay.getDate();
-    } else if (frequency === 'yearly') {
-      shouldFire = current.getDate() === anchorDay.getDate() &&
-                   current.getMonth() === anchorDay.getMonth();
-    }
+  for (const candidate of candidates) {
+    if (isSameDay(candidate, anchorDay)) continue;
+    if (candidate.getTime() < dayStartMs) continue;
 
-    if (shouldFire && !isBefore(current, anchorDay)) {
-      count++;
+    const occStart = new Date(candidate.getTime() + hoursOffset);
+    const occEnd = new Date(occStart.getTime() + timeDelta);
+    const dateKey = format(candidate, 'yyyy-MM-dd');
 
-      if (endType === 'count' && endCount && count > endCount) break;
-
-      if (!isBefore(current, startOfDay(rangeStart)) || isSameDay(current, rangeStart)) {
-        const occStart = new Date(current.getTime() + hoursOffset);
-        const occEnd = new Date(occStart.getTime() + timeDelta);
-        const dateKey = format(current, 'yyyy-MM-dd');
-
-        if (!isSameDay(current, anchorDay)) {
-          occurrences.push({
-            ...task,
-            id: `${task.id}_occ_${dateKey}`,
-            startTime: occStart,
-            endTime: occEnd,
-          });
-        }
-      }
-    }
-
-    if (frequency === 'daily') {
-      current = addDays(current, interval);
-    } else if (frequency === 'weekly') {
-      current = addDays(current, 1);
-    } else if (frequency === 'monthly') {
-      current = addDays(current, 1);
-      if (current.getDate() === 1 && !isSameDay(current, anchorDay)) {
-        const nextMonth = addMonths(startOfDay(new Date(current.getFullYear(), current.getMonth(), anchorDay.getDate() > 28 ? 28 : anchorDay.getDate())), 0);
-        if (nextMonth > current) current = nextMonth;
-      }
-    } else if (frequency === 'yearly') {
-      current = addDays(current, 1);
-    }
+    occurrences.push({
+      ...task,
+      id: `${task.id}_occ_${dateKey}`,
+      startTime: occStart,
+      endTime: occEnd,
+    });
   }
 
   return occurrences;

@@ -78,9 +78,10 @@ export const useTaskStore = create<TaskState>()(
       },
 
       updateTask: (id, updates) => {
+        const resolvedId = id.includes('_occ_') ? getMasterTaskId(id) : id;
         set((state) => ({
           tasks: state.tasks.map((task) =>
-            task.id === id
+            task.id === resolvedId
               ? {
                   ...task,
                   ...updates,
@@ -89,7 +90,7 @@ export const useTaskStore = create<TaskState>()(
                     ...task.history,
                     {
                       id: crypto.randomUUID(),
-                      taskId: id,
+                      taskId: resolvedId,
                       eventType: 'modified',
                       timestamp: new Date(),
                       details: JSON.stringify(updates),
@@ -102,13 +103,15 @@ export const useTaskStore = create<TaskState>()(
       },
 
       deleteTask: (id) => {
+        const resolvedId = id.includes('_occ_') ? getMasterTaskId(id) : id;
         set((state) => ({
-          tasks: state.tasks.filter((task) => task.id !== id),
+          tasks: state.tasks.filter((task) => task.id !== resolvedId),
         }));
       },
 
       completeTask: (id, completed) => {
-        const task = get().tasks.find((t) => t.id === id);
+        const resolvedId = id.includes('_occ_') ? getMasterTaskId(id) : id;
+        const task = get().tasks.find((t) => t.id === resolvedId);
         if (!task) return;
 
         const updatedTask: Task = {
@@ -120,7 +123,7 @@ export const useTaskStore = create<TaskState>()(
             ...task.history,
             {
               id: crypto.randomUUID(),
-              taskId: id,
+              taskId: resolvedId,
               eventType: completed ? 'completed' : 'not_completed',
               timestamp: new Date(),
             },
@@ -128,13 +131,14 @@ export const useTaskStore = create<TaskState>()(
         };
 
         set((state) => ({
-          tasks: state.tasks.filter((t) => t.id !== id),
+          tasks: state.tasks.filter((t) => t.id !== resolvedId),
           archivedTasks: [...state.archivedTasks, updatedTask],
         }));
       },
 
       moveToStandby: (id, notes) => {
-        const task = get().tasks.find((t) => t.id === id);
+        const resolvedId = id.includes('_occ_') ? getMasterTaskId(id) : id;
+        const task = get().tasks.find((t) => t.id === resolvedId);
         if (!task) return;
 
         const standbyTask: StandbyTask = {
@@ -144,7 +148,7 @@ export const useTaskStore = create<TaskState>()(
         };
 
         set((state) => ({
-          tasks: state.tasks.filter((t) => t.id !== id),
+          tasks: state.tasks.filter((t) => t.id !== resolvedId),
           standbyTasks: [...state.standbyTasks, standbyTask],
         }));
       },
@@ -241,9 +245,10 @@ export const useTaskStore = create<TaskState>()(
       },
 
       addHistoryEntry: (taskId, entry) => {
+        const resolvedTaskId = taskId.includes('_occ_') ? getMasterTaskId(taskId) : taskId;
         set((state) => ({
           tasks: state.tasks.map((task) =>
-            task.id === taskId
+            task.id === resolvedTaskId
               ? {
                   ...task,
                   history: [
