@@ -542,7 +542,7 @@ const EditTaskPage = () => {
             className="w-full max-w-lg mx-auto block"
             data-testid="button-confirm-edit"
           >
-            שמור שינויים
+            אשר עריכה
           </Button>
         </div>
 

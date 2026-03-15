@@ -8,7 +8,7 @@ import DayViewPage from "./pages/DayViewPage";
 import MonthViewPage from "./pages/MonthViewPage";
 import TaskDetailPage from "./pages/TaskDetailPage";
 import AddTaskPage from "./pages/AddTaskPage";
-import EditTaskPage from "./pages/RescheduleTaskPage";
+import EditTaskPage from "./pages/EditTaskPage";
 import StandbyPage from "./pages/StandbyPage";
 import SettingsPage from "./pages/SettingsPage";
 import StatisticsPage from "./pages/StatisticsPage";
