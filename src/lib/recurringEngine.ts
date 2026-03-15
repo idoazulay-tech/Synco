@@ -1,5 +1,5 @@
 import { Task } from '@/types/task';
-import { startOfDay, addDays, addWeeks, addMonths, addYears, differenceInMilliseconds, format, isBefore, isAfter, isSameDay } from 'date-fns';
+import { startOfDay, addDays, addWeeks, addMonths, addYears, differenceInMilliseconds, differenceInCalendarMonths, differenceInCalendarYears, format, isBefore, isAfter, isSameDay } from 'date-fns';
 
 export function isRecurringOccurrence(taskId: string): boolean {
   return taskId.includes('_occ_');
@@ -15,6 +15,7 @@ function generateCandidateDates(
   frequency: string,
   interval: number,
   daysOfWeek: number[] | undefined,
+  rangeStart: Date,
   rangeEnd: Date,
   effectiveEnd: Date,
   maxCount: number | undefined,
@@ -68,7 +69,11 @@ function generateCandidateDates(
       }
     }
   } else if (frequency === 'monthly') {
-    let current = anchorDay;
+    const calMonthsApart = Math.max(0, differenceInCalendarMonths(rangeStart, anchorDay));
+    const skipSteps = Math.max(0, Math.floor(calMonthsApart / interval) - 1);
+    count = skipSteps;
+    let current = addMonths(anchorDay, count * interval);
+
     while (iterations < maxIterations) {
       iterations++;
       if (isAfter(current, effectiveEnd) || isAfter(current, rangeEnd)) break;
@@ -78,7 +83,11 @@ function generateCandidateDates(
       current = addMonths(anchorDay, count * interval);
     }
   } else if (frequency === 'yearly') {
-    let current = anchorDay;
+    const calYearsApart = Math.max(0, differenceInCalendarYears(rangeStart, anchorDay));
+    const skipSteps = Math.max(0, Math.floor(calYearsApart / interval) - 1);
+    count = skipSteps;
+    let current = addYears(anchorDay, count * interval);
+
     while (iterations < maxIterations) {
       iterations++;
       if (isAfter(current, effectiveEnd) || isAfter(current, rangeEnd)) break;
@@ -110,7 +119,7 @@ export function expandRecurring(task: Task, rangeStart: Date, rangeEnd: Date): T
 
   const candidates = generateCandidateDates(
     anchorDay, frequency, interval, daysOfWeek,
-    rangeEnd, effectiveEnd, maxCount,
+    startOfDay(rangeStart), rangeEnd, effectiveEnd, maxCount,
   );
 
   const dayStartMs = startOfDay(rangeStart).getTime();
