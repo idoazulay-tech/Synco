@@ -1,0 +1,239 @@
+אתה סוכן Replit שמפתח את Synco. אני לא כותב קוד ולא רוצה לגעת בקבצים ידנית מעבר להדבקת הפרומפט הזה. המטרה: לבנות שכבת “זיכרון מוח” יציבה עם Qdrant, כדי שסינקו תזכור משתמשים לאורך זמן ותוכל לבנות תובנות, פרופיל, ודפוסים.
+
+חשוב מאוד:
+- אל תשבור שום יכולת קיימת.
+- אל תמחק קבצים לפני בדיקה מלאה של imports ושימוש בפועל.
+- יש סיכון כפילות JS/TS בפרויקט. אתה חייב לטפל בזה בזהירות.
+- חובה לבצע הפרדה מלאה בין משתמשים: לכל משתמש יש זיכרון ומוח נפרדים. אסור בשום מצב שמידע של משתמש אחד יחזור או יופיע אצל משתמש אחר.
+
+========================================
+מה אנחנו רוצים ליצור במילים פשוטות
+========================================
+אנחנו בונים 4 סוגי זיכרון לסינקו, והכל מופרד לפי userId:
+1) user_events      = כל מה שהמשתמש אמר/עשה (אירועים)
+2) user_insights    = תובנות על המשתמש שנגזרות מהאירועים
+3) user_profile     = חוקים/העדפות מאושרות ויציבות של המשתמש
+4) synco_knowledge  = ידע כללי וכלים (לא אישי), לשימוש עוזר חכם
+
+Qdrant הוא מחסן הזיכרון (לא חושב). השרת (Express) הוא המוח הפעיל שמכניס ושולף.
+
+========================================
+תוצרים נדרשים (Definition of Done)
+========================================
+A) Qdrant client אחד אחיד במערכת (Single Source of Truth)
+- קובץ אחד שמייצא: export const qdrant
+- ועוד: export async function testQdrantConnection()
+
+B) Init יציב ל-collections בזמן עליית השרת
+- קובץ אחד שמייצא: export async function initQdrantCollections()
+- בזמן startup, לוודא שה-4 collections קיימים, ואם לא ליצור אותם.
+
+C) 4 collections קיימים ב-Qdrant:
+- user_events
+- user_insights
+- user_profile
+- synco_knowledge
+
+D) הפרדה מוחלטת בין משתמשים
+- בכל upsert ל-user_events / user_insights / user_profile חייב להיות payload עם userId
+- בכל search/retrieval חייב להיות filter MUST על userId
+- חובה להוסיף בדיקות/אבטחה בצד השרת שמונעות query בלי userId
+- אסור להחזיר תוצאות ללא filter
+- synco_knowledge הוא היחיד שלא דורש userId כי הוא ידע כללי (אבל עדיין אפשר לשמור tenantId אם יש צורך בעתיד)
+
+E) בדיקות והדפסות לוג:
+- אם חסרים env vars: הודעת אזהרה ברורה
+- אם חיבור הצליח: הדפס getCollections
+- אם יצרת collection: הדפס “Collection created: X”
+- אם קיים: הדפס “Collection exists: X”
+
+F) אין כפילות מסוכנת JS/TS:
+- או הכל TS, או הכל JS, אבל לא מצב מעורב שמבלבל imports/runtime.
+- לא למחוק לפני שבודקים ומעדכנים imports.
+
+========================================
+שלב 0: בדיקת מצב הפרויקט לפני שינוי
+========================================
+1) חפש בכל הפרויקט:
+- "qdrant.js"
+- "qdrant-init.js"
+- "qdrant.ts"
+- "qdrant-init.ts"
+- "testQdrantConnection"
+- "initQdrantCollections"
+2) דווח לי בסיכום קצר:
+- אילו קבצים קיימים בפועל
+- מאיזה קובץ server/index.ts מייבא qdrant ו-init בפועל
+- האם המערכת משתמשת ב-TS או JS בפועל באזור server/lib
+
+אל תבצע מחיקות לפני שהסיכום הזה ברור.
+
+========================================
+שלב 1: להחליט סטנדרט אחד (TS מומלץ)
+========================================
+העדפה: לעבור ל-TypeScript בקבצי server/lib כי הפרויקט ברובו TS.
+אבל אם כרגע server/index.ts מייבא במפורש קבצי .js (למשל ./lib/qdrant.js) ואתה חושש לשבור משהו,
+תוכל להישאר עם JS זמנית, כל עוד אין כפילות בשימוש.
+בכל מקרה: לא להשאיר מצב ששני הסטים פעילים.
+
+כלל בטיחות:
+- אם עוברים ל-TS: לעדכן imports ב-server/index.ts ובכל מקום רלוונטי לנתיבים החדשים, להריץ/לוודא עלייה, ורק אז להסיר/למחוק קבצי JS שאינם בשימוש.
+- אם נשארים עם JS: להסיר/להתעלם מה-TS שאינם בשימוש כדי למנוע בלבול.
+
+========================================
+שלב 2: יצירת/תיקון Qdrant client (qdrant.*)
+========================================
+צור או תקן קובץ יחיד בהתאם לסטנדרט שבחרת:
+
+אופציה TS: server/lib/qdrant.ts
+אופציה JS: server/lib/qdrant.js
+
+הקובץ חייב לכלול:
+- import { QdrantClient } from "@qdrant/js-client-rest";
+- לקרוא env vars:
+  QDRANT_URL
+  QDRANT_API_KEY
+- לייצא:
+  export const qdrant = url && apiKey ? new QdrantClient({ url, apiKey }) : null;
+- לוג ברור:
+  "Qdrant client initialized" או "Qdrant client skipped (missing env vars)"
+- export async function testQdrantConnection():
+  אם qdrant null -> warn
+  אחרת -> try getCollections() ולוג הצלחה או שגיאה
+
+========================================
+שלב 3: יצירת/תיקון init collections (qdrant-init.*)
+========================================
+צור או תקן קובץ יחיד בהתאם לסטנדרט שבחרת:
+
+אופציה TS: server/lib/qdrant-init.ts
+אופציה JS: server/lib/qdrant-init.js
+
+הקובץ חייב:
+- לייבא את qdrant מהקובץ הקודם
+- להכיל VECTOR_SIZE נכון לפי embeddings:
+  - text-embedding-3-small -> 1536
+  - text-embedding-3-large -> 3072
+אם לא ברור בקוד איזה מודל embeddings בשימוש:
+1) קרא env בשם EMBEDDING_DIM ואם קיים השתמש בו,
+2) אחרת default ל-1536 והוסף warning ברור: "Verify embedding dimension".
+
+לוגיקה:
+- REQUIRED_COLLECTIONS = ["user_events","user_insights","user_profile","synco_knowledge"]
+- getCollections פעם אחת, לבנות set של names
+- לכל collection חסר:
+  createCollection עם:
+  vectors: { size: VECTOR_SIZE, distance: "Cosine" }
+- להדפיס “Collection created: X” או “Collection exists: X”
+
+Export:
+export async function initQdrantCollections()
+
+========================================
+שלב 4: חיבור init ל-startup בשרת
+========================================
+מצא את server/index.ts (entry) ודא ששם server עולה.
+
+ב-server/index.ts חייב להיות:
+- import של testQdrantConnection
+- import של initQdrantCollections
+
+ואז בזמן startup:
+- לקרוא testQdrantConnection()
+- לקרוא initQdrantCollections()
+
+אם כרגע זה בתוך app.listen callback — זה סבבה.
+אם אפשר בלי לשבור, עדיף לפני app.listen, אבל מינימום סיכון.
+
+========================================
+שלב 5: להוסיף שכבת API בסיסית שמבטיחה הפרדת משתמשים (מינימום הכרחי)
+========================================
+כדי שלא יווצר מצב שמישהו שואל query בלי userId או מקבל זיכרון של מישהו אחר, תוסיף שכבת guard/utility בצד השרת:
+
+- פונקציה validateUserId(userId):
+  אם חסר -> מחזיר 400 ומפסיק
+- כל קריאה עתידית ל-Qdrant search על collections אישיים חייבת לקבל userId ולהעביר filter:
+  filter: { must: [{ key: "userId", match: { value: userId }}] }
+
+אם כבר קיימים services ל-memory, תעדכן אותם כך שלא תהיה אפשרות לבצע retrieval בלי userId.
+אם אין עדיין endpoints, תוסיף endpoint בדיקה מינימלי (לא פיצר מלא) רק כדי להוכיח הפרדה:
+POST /api/memory/debug/search
+body: { userId, text }
+מחזיר top hits מה-user_events עם filter userId בלבד.
+חשוב: זה רק debug, אפשר להסתיר מאחורי dev בלבד.
+
+בכל upsert עתידי (events/insights/profile):
+- payload חייב לכלול userId
+
+========================================
+שלב 6: בדיקות אחרי שינוי
+========================================
+1) הפעל את השרת (dev)
+2) ודא בקונסול:
+- אין שגיאות import/module
+- Qdrant client initialized (או הודעה שמסבירה שחסרים env vars)
+- Qdrant connected successfully (אם יש env vars תקינים)
+- Collection created/exist ל-4 collections
+
+3) בדיקת הפרדה:
+- הכנס שתי רשומות שונות לשני userId שונים (בדרך זמנית או דרך debug endpoint)
+- חפש עם userId הראשון: אסור לקבל תוצאות של userId השני
+- חפש עם userId השני: אסור לקבל תוצאות של userId הראשון
+אם יש ערבוב, זה BUG קריטי שחייב תיקון.
+
+========================================
+שלב 7: ניקוי כפילויות בזהירות
+========================================
+לאחר שהשרת עובד וה-importים תקינים:
+- אם נשארו קבצי qdrant בסט אחר (JS או TS) שאינם בשימוש:
+  בצע חיפוש imports לוודא שאין references,
+  ורק אז הסר/מחק כדי למנוע בלבול עתידי.
+
+========================================
+קוד חובה (תבניות)
+========================================
+אם אתה בוחר TS, השתמש בתבניות הבאות:
+
+[server/lib/qdrant.ts]
+import { QdrantClient } from "@qdrant/js-client-rest";
+const url = process.env.QDRANT_URL;
+const apiKey = process.env.QDRANT_API_KEY;
+export const qdrant = url && apiKey ? new QdrantClient({ url, apiKey }) : null;
+console.log(qdrant ? "Qdrant client initialized" : "Qdrant client skipped (missing env vars)");
+export async function testQdrantConnection() {
+  if (!qdrant) { console.warn("Qdrant client not available — skipping connection test"); return; }
+  try { const collections = await qdrant.getCollections(); console.log("Qdrant connected successfully"); console.log(collections); }
+  catch (error) { console.error("Qdrant connection failed", error); }
+}
+
+[server/lib/qdrant-init.ts]
+import { qdrant } from "./qdrant";
+const DEFAULT_VECTOR_SIZE = 1536;
+const VECTOR_SIZE = Number(process.env.EMBEDDING_DIM || DEFAULT_VECTOR_SIZE);
+const REQUIRED_COLLECTIONS = ["user_events","user_insights","user_profile","synco_knowledge"];
+export async function initQdrantCollections() {
+  if (!qdrant) { console.warn("Qdrant client not available — skipping init collections"); return; }
+  const existing = await qdrant.getCollections();
+  const names = new Set(existing.collections.map(c => c.name));
+  for (const name of REQUIRED_COLLECTIONS) {
+    if (!names.has(name)) {
+      await qdrant.createCollection(name, { vectors: { size: VECTOR_SIZE, distance: "Cosine" } });
+      console.log(`Collection created: ${name}`);
+    } else {
+      console.log(`Collection exists: ${name}`);
+    }
+  }
+  if (!process.env.EMBEDDING_DIM) {
+    console.warn("EMBEDDING_DIM is not set. Defaulted VECTOR_SIZE to 1536. Verify embedding dimension.");
+  }
+}
+
+========================================
+בסיום
+========================================
+1) תן לי סיכום מה עשית: אילו קבצים נוצרו/שונו, ואיך פתרת את כפילות JS/TS.
+2) תן לי הוכחה: פלט לוגים שמראה שהקולקשנים נוצרו/קיימים.
+3) תן לי הוכחה להפרדה: תוצאה של חיפוש ל-userId1 שמראה רק userId1, ותוצאה ל-userId2 שמראה רק userId2.
+4) אל תוסיף פיצרים נוספים מעבר לזה בשלב הזה.
+
+התחל עכשיו משלב 0, תן סיכום מצב, ואז בצע את השינויים.

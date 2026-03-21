@@ -1,0 +1,276 @@
+אני ממשיך את הפרויקט שכבר יצרת לפי ה-Project Skeleton וה-7 Layers מהפרומפט הקודם. 
+עכשיו אני רוצה שתבנה במלואו את Layer 2: Intent & Context Engine, בצורה מודולרית, יציבה, ניתנת להרחבה, ומחוברת ל-index.ts שכבר קיים.
+
+דרישות כלליות
+1) שפה: TypeScript
+2) Architecture: modular, clean, scalable
+3) כל קובץ קצר וממוקד, ללא קוד ספגטי
+4) לא להוסיף UI
+5) כל הפלטים והקלטים מוגדרים ב-types עם interfaces
+6) להוסיף unit tests בסיסיים ל-Intent Engine כדי לוודא יציבות
+7) comments קצרים באנגלית בלבד
+8) לא להמציא פיצ'רים שלא ביקשתי
+9) לשמור תאימות מלאה לפלט JSON שהגדרנו בפרומפט הקודם
+
+הקשר לפרומפט הקודם
+בפרומפט הקודם כבר בנית:
+- /src/layers/input
+- /src/layers/intent (קיים אבל עכשיו צריך לבנות אותו עד הסוף)
+- /src/types
+- /src/utils
+- index.ts
+כעת אני רוצה להשלים את /src/layers/intent באופן מלא, כולל תתי מודולים, ולחבר אותו ל-flow הראשי.
+
+המטרה העסקית-לוגית של השכבה השנייה
+השכבה מקבלת input text ומחזירה "Intent Analysis" שמספיק טוב כדי ששכבות 3 עד 7 יוכלו לעבוד מלא:
+- Decision Engine יוכל להחליט execute/ask/reflect/stop
+- Task & Time Engine יקבל entities ותלויות
+- Learning Engine יקבל החלטות + confidence + context signals
+- Feedback Layer יקבל הסבר למשתמש מה הובן ומה חסר
+
+חובה לבנות Intent & Context Engine כמערכת שמורכבת מ-10 רכיבים פנימיים
+המודול הראשי: IntentContextEngine
+ובתוכו pipeline קבוע:
+
+Pipeline Steps (חובה לפי סדר)
+Step 1: normalizeText
+Step 2: detectLanguage (he/en/mixed)
+Step 3: classifyInputType
+Step 4: detectPrimaryIntent + secondaryIntents
+Step 5: extractEntities
+Step 6: detectCommitmentLevel
+Step 7: detectCognitiveLoad
+Step 8: detectMissingCriticalInfo
+Step 9: computeConfidenceScore
+Step 10: createExplainabilityNotes (לשימוש פנימי בלבד, לא חייב לחשוף למשתמש אבל חייב להחזיר במבנה internal)
+
+מבנה תיקיות נדרש בתוך /src/layers/intent
+/src/layers/intent
+  index.ts
+  IntentContextEngine.ts
+  pipeline/
+    normalizeText.ts
+    detectLanguage.ts
+    classifyInputType.ts
+    detectIntents.ts
+    extractEntities.ts
+    detectCommitment.ts
+    detectCognitiveLoad.ts
+    detectMissingInfo.ts
+    computeConfidence.ts
+    explainability.ts
+  rules/
+    keywords.ts
+    patterns.ts
+    scoring.ts
+  memory/
+    ContextState.ts
+    ContextManager.ts
+  types/
+    intentTypes.ts
+    entityTypes.ts
+    contextTypes.ts
+  __tests__/
+    intentEngine.test.ts
+
+חובה להגדיר Types מדויקים
+ב-/src/layers/intent/types וגם ב-/src/types הכלליים אם צריך.
+
+IntentAnalysis Output (חובה)
+להחזיר אובייקט שמכיל לפחות:
+
+{
+  "inputType": "command|thought|question|correction|emotional_dump",
+  "primaryIntent": "create_task|create_event|reschedule|cancel|inquire|log_note|unknown",
+  "secondaryIntents": ["..."],
+  "commitmentLevel": "high|medium|low",
+  "entities": {
+    "time": { "raw": "", "iso": "", "confidence": 0 },
+    "date": { "raw": "", "iso": "", "confidence": 0 },
+    "duration": { "raw": "", "minutes": 0, "confidence": 0 },
+    "people": [{ "raw": "", "normalized": "", "confidence": 0 }],
+    "location": { "raw": "", "normalized": "", "confidence": 0 },
+    "taskName": { "raw": "", "normalized": "", "confidence": 0 },
+    "urgency": { "raw": "", "level": "low|medium|high", "confidence": 0 },
+    "must": { "raw": "", "value": true|false, "confidence": 0 }
+  },
+  "cognitiveLoad": "low|medium|high",
+  "missingInfo": ["date", "time", "duration", "taskName", ...],
+  "confidenceScore": 0.0,
+  "context": {
+    "isFollowUp": true|false,
+    "refersToPrevious": true|false,
+    "previousTurnId": "",
+    "topic": "",
+    "assumptions": ["..."]
+  },
+  "internal": {
+    "notes": ["..."],
+    "signals": {
+      "keywordsMatched": ["..."],
+      "patternsMatched": ["..."]
+    }
+  }
+}
+
+הערה חשובה:
+אם אין ישות מסוימת, עדיין להחזיר אותה עם ערכי ברירת מחדל ו-confidence 0, כדי שכל השכבות הבאות יוכלו לסמוך על מבנה קבוע.
+
+Context Memory (חובה)
+לבנות ContextManager שמחזיק "Session State" בזיכרון (in-memory) בלבד בשלב הזה.
+הוא צריך לשמור:
+- lastIntent
+- lastEntities
+- lastMissingInfo
+- lastUserChoice אם היה
+- lastTurnId
+- rollingCognitiveLoad (ממוצע קצר)
+
+חוקים:
+1) אם המשתמש כותב "כן" או "לא" או "בדיוק" או "ככה" זה כנראה follow-up.
+2) אם inputType הוא correction, צריך לקשר לתוצאה הקודמת.
+3) ContextManager צריך להציע ל-IntentEngine האם זו השלמה של מידע חסר.
+
+Input Type Classification (חובה חוקים מפורטים)
+classifyInputType צריך לעבוד לפי שילוב:
+- keywords
+- punctuation
+- length
+- presence of verbs
+- correction cues
+
+כללים בסיסיים:
+command:
+  ביטויים כמו: "תכניס", "תקבע", "שים", "תוסיף", "תזכיר", "תסדר"
+thought:
+  "אני צריך", "נראה לי", "אולי", "חושב ש"
+question:
+  סימן שאלה או מילות שאלה: "למה", "איך", "מתי", "איפה", "מה"
+correction:
+  "לא", "לא ככה", "עזוב", "בעצם", "תיקון", "שכח מזה"
+emotional_dump:
+  הרבה רגש, מילים כמו "לחוץ", "נמאס", "לא מסוגל", "אני קורס", וגם טקסט ארוך ללא בקשת פעולה ברורה
+
+Intent Detection (חובה)
+detectIntents צריך לזהות primaryIntent + secondaryIntents.
+דוגמאות:
+- "תכניס לי פגישה" => create_event
+- "תזכיר לי" => create_task או remind (אבל בשלב הזה לתרגם ל-create_task עם entity must/urgency)
+- "תסדר לי את היום" => reschedule
+- "לבטל" => cancel
+- "מה יש לי היום" => inquire
+
+אם יש ambiguity, primaryIntent יכול להיות unknown אבל אז confidenceScore יורד וה-missingInfo יכלול "clarification_needed".
+
+Entity Extraction (חובה, בלי ספריות חיצוניות בשלב MVP)
+extractEntities צריך להיות Rule Based עם patterns ו-keywords.
+הוא צריך לתמוך לפחות ב:
+Time:
+  "ב-2", "בשעה 14:00", "שתיים וחצי", "בעוד שעה", "עוד 20 דקות"
+Date:
+  "היום", "מחר", "מחרתיים", "ביום ראשון", "ביום חמישי", "השבוע", "מחר בבוקר"
+Duration:
+  "20 דקות", "חצי שעה", "שעה", "שעתיים"
+People:
+  אחרי "עם", או זיהוי שם פרטי בודד (הכי פשוט: מילה שמתחילה באות גדולה באנגלית, ובעברית לזהות לאחר "עם")
+Location:
+  אחרי "ב", "בבית", "בעבודה", "ברמת גן", "במשרד"
+Task Name:
+  אם יש פועל ועוד אובייקט: "לקנות מים", "לשטוף כלים", "להכין אוכל"
+Urgency:
+  מילים: "דחוף", "עכשיו", "מייד", "חייב"
+Must:
+  מילים: "חייב", "אין מצב שלא", "must", "נעול"
+
+ייצוג זמן ותגיות
+- להחזיר raw תמיד
+- iso רק אם אפשר לחשב בביטחון. אם לא, להשאיר iso ריק ו-confidence נמוך.
+- אין צורך Timezone חיצוני. אבל כן להגדיר מקום בעתיד.
+
+Commitment Level (חובה)
+detectCommitmentLevel לפי ניסוח:
+high:
+  "תעשה", "תכניס", "אני חייב", "עכשיו", "תסדר"
+medium:
+  "כדאי", "אפשר", "בוא", "אני רוצה"
+low:
+  "אולי", "נראה לי", "חושב ש", "מתישהו"
+
+Cognitive Load (חובה)
+detectCognitiveLoad מחזיר low/medium/high לפי:
+- אורך טקסט
+- כמות פסיקים
+- חזרות
+- מעבר נושאים מהיר
+- מילים כמו "דחוף דחוף דחוף"
+דוגמה:
+אם יש חזרות "דחוף" או טקסט מבולגן => high
+
+Missing Critical Info (חובה לפי Intent)
+detectMissingInfo צריך כללים לכל intent:
+create_event:
+  חייב: date + time + people או title
+create_task:
+  חייב: taskName
+  מומלץ: duration או deadline
+reschedule:
+  חייב: scope (היום/מחר/המשימות האלה)
+cancel:
+  חייב: target (מה מבטלים)
+inquire:
+  לא חייב כלום, אבל יתכן scope
+
+Confidence Score (חובה)
+computeConfidenceScore מחזיר 0 עד 1 לפי:
+- כמה מזהים בוודאות inputType + primaryIntent
+- כמה entities נמצאו
+- כמה missingInfo נשאר
+- האם יש conflict בין signals
+להגדיר scoring weights ב-/rules/scoring.ts
+
+Explainability (חובה פנימי)
+explainability.ts צריך לייצר notes פנימיים:
+למשל:
+- "Detected command due to keyword 'תכניס'"
+- "Primary intent create_event from phrase 'פגישה'"
+- "Missing date"
+זה לא בהכרח מוצג למשתמש, אבל חייב להיות קיים לאבחון ולשכבת Feedback בעתיד.
+
+Integration (חובה)
+- IntentContextEngine יהיה פונקציה אחת ציבורית:
+analyze(inputText: string, contextManager: ContextManager): IntentAnalysis
+- index.ts ייבנה כך שאפשר להריץ:
+node dist/index.js
+ולראות console.log של IntentAnalysis
+
+Testing (חובה)
+ב-__tests__/intentEngine.test.ts לבנות לפחות 10 בדיקות אמיתיות:
+1) "תכניס לי פגישה מחר ב-2 עם יוסי"
+2) "תזכיר לי לקנות מים"
+3) "אני אולי צריך לעשות קניות"
+4) "לא, בעצם מחר ב-3"
+5) "דחוף דחוף אני חייב לקנות תבלין עכשיו זה 20 דקות"
+6) "מה יש לי היום"
+7) "תסדר לי את היום מחדש"
+8) "עזוב שכח מזה"
+9) "כן"
+10) "אני לחוץ לא מצליח לתפקד"
+
+כל טסט צריך לוודא:
+- inputType נכון
+- primaryIntent הגיוני
+- entities נכונות ברמה בסיסית
+- missingInfo מתנהג נכון
+
+שמירה על יציבות לשכבות הבאות
+הקוד צריך להיות כתוב כך שבשכבות 3 עד 7 נוכל להחליף את rule-based ב-LLM בעתיד בלי לשבור interfaces.
+לכן להגדיר interfaces ברורים ולבודד rules בתוך /rules.
+
+בסיום
+1) תריץ build
+2) תריץ tests
+3) תוודא ש-index.ts מדגים 3 קלטים שונים ומחזיר IntentAnalysis תקין
+4) תוסיף comment:
+// READY FOR NEXT LAYER: Decision Engine
+
+תתחיל לבנות עכשיו.
