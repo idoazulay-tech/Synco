@@ -1,8 +1,7 @@
 import { Router } from 'express';
-import OpenAI from 'openai';
+import { chatCompletion } from '../brain/utils/openai-client.js';
 
 const router = Router();
-const openai = new OpenAI();
 
 const SYSTEM_PROMPT = `אתה עוזר תכנון משימות חכם בעברית. המשתמש יתאר משימות שהוא צריך לבצע היום.
 עליך לחלץ כל משימה בנפרד ולהחזיר JSON מובנה.
@@ -15,16 +14,19 @@ const SYSTEM_PROMPT = `אתה עוזר תכנון משימות חכם בעברי
 - duration: משך בדקות (ברירת מחדל: 30)
 - priority: "high" / "medium" / "low" (הסק לפי דחיפות/חשיבות)
 - flexibility: "fixed" (נעוץ בזמן) / "flexible" (גמיש) / "anytime" (בכל זמן)
+- location: מיקום אם צוין (שם מקום, כתובת), null אם לא צוין
 - notes: הערה קצרה אם יש מידע נוסף רלוונטי
 
 החזר אך ורק JSON תקין בפורמט:
-{ "tasks": [ { "title": "...", "date": "...", "hour": ..., "minute": ..., "duration": ..., "priority": "...", "flexibility": "...", "notes": "..." } ] }
+{ "tasks": [ { "title": "...", "date": "...", "hour": ..., "minute": ..., "duration": ..., "priority": "...", "flexibility": "...", "location": "...", "notes": "..." } ] }
 
 חוקים:
 - אם משתמש אומר "בוקר" = בין 8-10, "צהריים" = 12-13, "אחה"צ" = 14-16, "ערב" = 18-20
 - אם משתמש אומר "דחוף" / "חשוב" = priority high
 - פגישות/התחייבויות חיצוניות = flexibility fixed
-- משימות עצמאיות = flexibility flexible`;
+- משימות עצמאיות = flexibility flexible
+- אם צוין מיקום ("ב...", "ב-...", "אצל...", "ב..." + שם מקום) חלץ אותו ל-location
+- "פגישה" ללא הגדרת משך = 60 דקות, "שיחה" = 30 דקות`;
 
 router.post('/parse', async (req, res) => {
   try {
@@ -44,18 +46,12 @@ ${existingTasks && existingTasks.length > 0 ? `\nמשימות קיימות בי�
 
 חלץ את כל המשימות:`;
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4.1-mini',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage }
-      ],
-      response_format: { type: 'json_object' },
+    const content = await chatCompletion(SYSTEM_PROMPT, userMessage, {
       temperature: 0.3,
+      jsonMode: true,
     });
 
-    const content = response.choices[0].message.content || '{"tasks":[]}';
-    const parsed = JSON.parse(content);
+    const parsed = JSON.parse(content || '{"tasks":[]}');
 
     res.json({ tasks: parsed.tasks || [] });
   } catch (error: any) {

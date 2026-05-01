@@ -1,12 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mic, MicOff, Send, Loader2, Check, X, Edit2,
-  ChevronLeft, Clock, Calendar, AlertTriangle, Zap,
-  GripVertical, ArrowRight, Info
+  ChevronLeft, Clock, Calendar, Zap,
+  ArrowRight, MapPin
 } from 'lucide-react';
-import { format, addMinutes, setHours, setMinutes, startOfDay } from 'date-fns';
+import { format, addMinutes, setHours, setMinutes } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,7 +17,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { useTaskStore } from '@/store/taskStore';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { Task, TaskPriority, TaskFlexibility } from '@/types/task';
+import { TaskPriority, TaskFlexibility } from '@/types/task';
 
 interface ParsedTask {
   id: string;
@@ -28,6 +28,7 @@ interface ParsedTask {
   duration: number;
   priority: TaskPriority;
   flexibility: TaskFlexibility;
+  location?: string;
   notes?: string;
   approved: boolean;
   editing: boolean;
@@ -80,11 +81,17 @@ export default function PriorityPlannerPage() {
   const [inputText, setInputText] = useState('');
   const [parsedTasks, setParsedTasks] = useState<ParsedTask[]>([]);
   const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
   const [voiceEditingId, setVoiceEditingId] = useState<string | null>(null);
+  const [liveTranscript, setLiveTranscript] = useState('');
 
   const recognitionRef = useRef<any>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Saves the inputText content that was present BEFORE the current recording session started
+  const sessionStartTextRef = useRef('');
+  // Accumulates the final (confirmed) transcript for the current session
+  const sessionFinalRef = useRef('');
+  // For edit mode: always holds the latest transcript regardless of React render cycle
+  const editTranscriptRef = useRef('');
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayDisplay = format(new Date(), 'EEEE, d בMMMM', { locale: he });
@@ -96,53 +103,90 @@ export default function PriorityPlannerPage() {
     duration: t.duration,
   }));
 
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+  }, []);
+
   const startListening = useCallback((forEditId?: string) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       toast({ title: 'זיהוי קולי לא נתמך בדפדפן זה', variant: 'destructive' });
       return;
     }
+
+    // Stop any existing session cleanly
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch {}
+    }
+
+    // Capture current text before we start this session
+    sessionStartTextRef.current = forEditId ? '' : inputText;
+    sessionFinalRef.current = '';
+    editTranscriptRef.current = '';
+    setLiveTranscript('');
+
     const recognition = new SpeechRecognition();
     recognition.lang = 'he-IL';
-    recognition.continuous = false;
+    recognition.continuous = true;      // Keep listening until user presses stop
     recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = (e: any) => {
-      const interim = Array.from(e.results).map((r: any) => r[0].transcript).join('');
+      // Rebuild the full transcript from ALL results accumulated in this session
+      let finalText = '';
+      let interimText = '';
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          finalText += e.results[i][0].transcript;
+        } else {
+          interimText += e.results[i][0].transcript;
+        }
+      }
+
+      sessionFinalRef.current = finalText;
+      editTranscriptRef.current = finalText + interimText;
+
+      const displayText = finalText + interimText;
+
       if (forEditId) {
-        setTranscript(interim);
+        // In edit mode, just show what we're hearing live
+        setLiveTranscript(displayText);
       } else {
-        setInputText(prev => prev ? prev + ' ' + interim : interim);
+        // In main input mode, prepend whatever was in the box before recording
+        const prefix = sessionStartTextRef.current.trim();
+        const combined = prefix ? prefix + ' ' + displayText : displayText;
+        setInputText(combined);
       }
     };
 
     recognition.onend = () => {
       setIsListening(false);
       if (forEditId) {
-        const final = transcript;
-        if (final.trim()) {
-          applyVoiceEdit(forEditId, final.trim());
+        const final = editTranscriptRef.current.trim();
+        if (final) {
+          applyVoiceEdit(forEditId, final);
         }
         setVoiceEditingId(null);
-        setTranscript('');
+        setLiveTranscript('');
+        editTranscriptRef.current = '';
       }
     };
 
-    recognition.onerror = () => {
-      setIsListening(false);
-      setVoiceEditingId(null);
+    recognition.onerror = (e: any) => {
+      // 'no-speech' is expected when user pauses — not a real error in continuous mode
+      if (e.error !== 'no-speech') {
+        setIsListening(false);
+        setVoiceEditingId(null);
+        toast({ title: 'שגיאה בהקלטה', variant: 'destructive' });
+      }
     };
 
     recognitionRef.current = recognition;
     recognition.start();
     setIsListening(true);
     if (forEditId) setVoiceEditingId(forEditId);
-  }, [transcript, toast]);
-
-  const stopListening = useCallback(() => {
-    recognitionRef.current?.stop();
-    setIsListening(false);
-  }, []);
+  }, [inputText, toast]);
 
   const applyVoiceEdit = async (taskId: string, voiceText: string) => {
     try {
@@ -169,6 +213,7 @@ export default function PriorityPlannerPage() {
             duration: updated.duration || t.duration,
             priority: updated.priority || t.priority,
             flexibility: updated.flexibility || t.flexibility,
+            location: updated.location || t.location,
             notes: updated.notes || t.notes,
           } : t
         ));
@@ -181,6 +226,10 @@ export default function PriorityPlannerPage() {
 
   const analyzeInput = async () => {
     if (!inputText.trim()) return;
+
+    // Stop any active recording before analyzing
+    if (isListening) stopListening();
+
     setStep('analyzing');
 
     try {
@@ -203,23 +252,34 @@ export default function PriorityPlannerPage() {
         return;
       }
 
-      const tasksWithIds: ParsedTask[] = data.tasks.map((t: any, i: number) => ({
-        id: `planned_${Date.now()}_${i}`,
-        title: t.title || 'משימה ללא שם',
-        date: t.date || today,
-        hour: t.hour ?? null,
-        minute: t.minute ?? null,
-        duration: t.duration || 30,
-        priority: t.priority || 'medium',
-        flexibility: t.flexibility || 'flexible',
-        notes: t.notes || '',
-        approved: false,
-        editing: false,
-      }));
+      const tasksWithIds: ParsedTask[] = data.tasks
+        .map((t: any, i: number) => ({
+          id: `planned_${Date.now()}_${i}`,
+          title: t.title || 'משימה ללא שם',
+          date: t.date || today,
+          hour: t.hour ?? null,
+          minute: t.minute ?? null,
+          duration: t.duration || 30,
+          priority: t.priority || 'medium',
+          flexibility: t.flexibility || 'flexible',
+          location: t.location || '',
+          notes: t.notes || '',
+          approved: false,
+          editing: false,
+        }))
+        // Sort chronologically: tasks without time go last
+        .sort((a: ParsedTask, b: ParsedTask) => {
+          if (a.hour === null && b.hour === null) return 0;
+          if (a.hour === null) return 1;
+          if (b.hour === null) return -1;
+          const aMin = a.hour * 60 + (a.minute ?? 0);
+          const bMin = b.hour * 60 + (b.minute ?? 0);
+          return aMin - bMin;
+        });
 
       setParsedTasks(tasksWithIds);
       setStep('review');
-    } catch (err) {
+    } catch {
       toast({ title: 'שגיאה בניתוח', description: 'נסה שנית', variant: 'destructive' });
       setStep('input');
     }
@@ -262,7 +322,6 @@ export default function PriorityPlannerPage() {
 
     setTimeout(() => {
       let scheduled = 0;
-      const targetDate = new Date(today);
 
       toSchedule.forEach(task => {
         let startTime: Date;
@@ -270,7 +329,7 @@ export default function PriorityPlannerPage() {
         if (task.hour !== null) {
           startTime = setMinutes(setHours(new Date(task.date), task.hour), task.minute ?? 0);
         } else {
-          startTime = new Date(targetDate);
+          startTime = new Date(task.date);
           startTime.setHours(9, 0, 0, 0);
         }
 
@@ -278,7 +337,7 @@ export default function PriorityPlannerPage() {
 
         addTask({
           title: task.title,
-          description: task.notes || '',
+          description: [task.notes, task.location ? `📍 ${task.location}` : ''].filter(Boolean).join('\n'),
           startTime,
           endTime,
           duration: task.duration,
@@ -293,7 +352,7 @@ export default function PriorityPlannerPage() {
 
       toast({
         title: `${scheduled} משימות שובצו ביומן`,
-        description: `תראה אותן בתצוגת היום`
+        description: 'תראה אותן בתצוגת היום',
       });
       setStep('done');
     }, 1200);
@@ -315,8 +374,8 @@ export default function PriorityPlannerPage() {
     >
       <div className="max-w-lg mx-auto pb-28 px-4">
 
-        {/* Step: Input */}
         <AnimatePresence mode="wait">
+          {/* ────────── Step: Input ────────── */}
           {step === 'input' && (
             <motion.div
               key="input"
@@ -338,7 +397,6 @@ export default function PriorityPlannerPage() {
 
               <div className="relative">
                 <Textarea
-                  ref={textareaRef}
                   value={inputText}
                   onChange={e => setInputText(e.target.value)}
                   placeholder={`לדוגמה:\n"יש לי פגישה עם לקוח ב-10 לשעה וחצי, אחרי זה צריך לשלוח את הדוח, ואחה"צ לאסוף את הילדים ב-4"`}
@@ -351,10 +409,11 @@ export default function PriorityPlannerPage() {
                   className={cn(
                     'absolute bottom-3 left-3 p-2 rounded-full transition-all',
                     isListening
-                      ? 'bg-red-500 text-white animate-pulse'
-                      : 'bg-muted text-muted-foreground hover:text-foreground'
+                      ? 'bg-red-500 text-white animate-pulse shadow-lg'
+                      : 'bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80'
                   )}
                   data-testid="planner-voice-btn"
+                  title={isListening ? 'לחץ להפסיק הקלטה' : 'לחץ להתחיל הקלטה'}
                 >
                   {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </button>
@@ -362,12 +421,12 @@ export default function PriorityPlannerPage() {
 
               {isListening && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
                   className="flex items-center gap-2 text-sm text-red-500"
                 >
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  מקשיב...
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                  <span>מקשיב... לחץ על המיקרופון לעצירה</span>
                 </motion.div>
               )}
 
@@ -402,7 +461,7 @@ export default function PriorityPlannerPage() {
             </motion.div>
           )}
 
-          {/* Step: Analyzing */}
+          {/* ────────── Step: Analyzing ────────── */}
           {step === 'analyzing' && (
             <motion.div
               key="analyzing"
@@ -422,7 +481,7 @@ export default function PriorityPlannerPage() {
             </motion.div>
           )}
 
-          {/* Step: Review */}
+          {/* ────────── Step: Review ────────── */}
           {step === 'review' && (
             <motion.div
               key="review"
@@ -434,7 +493,7 @@ export default function PriorityPlannerPage() {
               <div className="flex items-center justify-between mb-1">
                 <div>
                   <h2 className="font-bold text-base">סינקו זיהה {parsedTasks.length} משימות</h2>
-                  <p className="text-xs text-muted-foreground">ערוך, אשר והסר לפי הצורך</p>
+                  <p className="text-xs text-muted-foreground">סדורות לפי שעה — ערוך, אשר והסר</p>
                 </div>
                 <Button variant="ghost" size="sm" onClick={approveAll} data-testid="approve-all-btn">
                   <Check className="w-4 h-4 ml-1" />
@@ -449,14 +508,14 @@ export default function PriorityPlannerPage() {
                     task={task}
                     index={index}
                     isVoiceEditing={voiceEditingId === task.id}
-                    voiceTranscript={voiceEditingId === task.id ? transcript : ''}
+                    liveTranscript={voiceEditingId === task.id ? liveTranscript : ''}
+                    isListening={isListening && voiceEditingId === task.id}
                     onToggleApprove={() => toggleApprove(task.id)}
                     onRemove={() => removeTask(task.id)}
                     onToggleEdit={() => toggleEdit(task.id)}
                     onUpdateField={(field, val) => updateField(task.id, field, val)}
                     onStartVoiceEdit={() => startListening(task.id)}
                     onStopVoiceEdit={stopListening}
-                    isListening={isListening && voiceEditingId === task.id}
                   />
                 ))}
               </div>
@@ -493,7 +552,7 @@ export default function PriorityPlannerPage() {
             </motion.div>
           )}
 
-          {/* Step: Scheduling */}
+          {/* ────────── Step: Scheduling ────────── */}
           {step === 'scheduling' && (
             <motion.div
               key="scheduling"
@@ -506,7 +565,7 @@ export default function PriorityPlannerPage() {
             </motion.div>
           )}
 
-          {/* Step: Done */}
+          {/* ────────── Step: Done ────────── */}
           {step === 'done' && (
             <motion.div
               key="done"
@@ -540,11 +599,13 @@ export default function PriorityPlannerPage() {
   );
 }
 
+// ────────── TaskReviewCard ──────────
+
 interface TaskReviewCardProps {
   task: ParsedTask;
   index: number;
   isVoiceEditing: boolean;
-  voiceTranscript: string;
+  liveTranscript: string;
   isListening: boolean;
   onToggleApprove: () => void;
   onRemove: () => void;
@@ -555,7 +616,7 @@ interface TaskReviewCardProps {
 }
 
 function TaskReviewCard({
-  task, index, isVoiceEditing, voiceTranscript, isListening,
+  task, index, isVoiceEditing, liveTranscript, isListening,
   onToggleApprove, onRemove, onToggleEdit, onUpdateField,
   onStartVoiceEdit, onStopVoiceEdit
 }: TaskReviewCardProps) {
@@ -616,17 +677,24 @@ function TaskReviewCard({
               </span>
             </div>
 
-            {task.notes && !task.editing && (
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{task.notes}</p>
+            {task.location && !task.editing && (
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                <MapPin className="w-3 h-3 flex-shrink-0" />
+                {task.location}
+              </p>
             )}
 
-            {isVoiceEditing && voiceTranscript && (
+            {task.notes && !task.editing && (
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{task.notes}</p>
+            )}
+
+            {isVoiceEditing && liveTranscript && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="mt-1 text-xs text-primary italic"
               >
-                "{voiceTranscript}"
+                "{liveTranscript}"
               </motion.div>
             )}
           </div>
@@ -699,6 +767,18 @@ function TaskReviewCard({
                     onChange={e => onUpdateField('duration', Number(e.target.value))}
                     className="h-8 text-sm"
                     data-testid={`edit-duration-${task.id}`}
+                  />
+                </div>
+                {/* Location */}
+                <div className="col-span-2">
+                  <label className="text-[10px] font-semibold text-muted-foreground block mb-1">מיקום</label>
+                  <Input
+                    value={task.location || ''}
+                    onChange={e => onUpdateField('location', e.target.value)}
+                    placeholder="מיקום (אופציונלי)"
+                    className="h-8 text-sm"
+                    dir="rtl"
+                    data-testid={`edit-location-${task.id}`}
                   />
                 </div>
                 {/* Priority */}
