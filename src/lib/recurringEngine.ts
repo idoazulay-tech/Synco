@@ -126,13 +126,18 @@ export function expandRecurring(task: Task, rangeStart: Date, rangeEnd: Date): T
 
   const occurrences: Task[] = [];
 
+  const excludedSet = new Set(task.excludedDates || []);
+
   for (const candidate of candidates) {
     if (isBefore(candidate, anchorDay)) continue;
     if (candidate.getTime() < dayStartMs) continue;
 
+    const dateKey = format(candidate, 'yyyy-MM-dd');
+
+    if (excludedSet.has(dateKey)) continue;
+
     const occStart = new Date(candidate.getTime() + hoursOffset);
     const occEnd = new Date(occStart.getTime() + timeDelta);
-    const dateKey = format(candidate, 'yyyy-MM-dd');
 
     occurrences.push({
       ...task,

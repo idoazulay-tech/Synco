@@ -66,6 +66,10 @@ export interface Task {
   flexibility?: TaskFlexibility;
   canMove?: boolean;
   repeat?: RecurringRule | null;
+  excludedDates?: string[]; // yyyy-MM-dd dates where recurring occurrences are suppressed (replaced by exceptions)
+  isOccurrenceException?: boolean; // true if this task is a standalone exception for one occurrence
+  masterTaskId?: string; // if exception, the ID of the master recurring task
+  occurrenceDate?: string; // if exception, the yyyy-MM-dd date it overrides
   isAllDay?: boolean;
   tags: Tag[];
   images?: string[];

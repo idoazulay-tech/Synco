@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation as useRouterLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Clock, MapPin, Tag, FileText, ChevronDown, ChevronUp, Repeat, X, Sun } from 'lucide-react';
+import { ArrowRight, Clock, MapPin, Tag, FileText, ChevronDown, ChevronUp, Repeat, X, Sun, GitBranch } from 'lucide-react';
 import { format, setHours, setMinutes, startOfDay, endOfDay, differenceInMinutes, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -16,14 +16,17 @@ import { useToast } from '@/hooks/use-toast';
 import { CompactSchedule, ScheduleToggle } from '@/components/layout/CompactSchedule';
 import { DEFAULT_TAGS, Tag as TagType, RecurringRule, RepeatFrequency, RepeatEndType } from '@/types/task';
 import { cn } from '@/lib/utils';
-import { formatRecurringSummary } from '@/lib/recurringEngine';
+import { formatRecurringSummary, isRecurringOccurrence } from '@/lib/recurringEngine';
 
 const EditTaskPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getTaskById, updateTask } = useTaskStore();
+  const routerLocation = useRouterLocation();
+  const { getTaskById, updateTask, editOccurrenceOnly } = useTaskStore();
   const { toast } = useToast();
   const task = id ? getTaskById(id) : undefined;
+
+  const isOccurrenceMode = !!id && isRecurringOccurrence(id) && new URLSearchParams(routerLocation.search).get('mode') === 'occurrence';
 
   const [showSchedule, setShowSchedule] = useState(false);
   const [title, setTitle] = useState('');
@@ -130,7 +133,7 @@ const EditTaskPage = () => {
       : setMinutes(setHours(startOfDay(taskDate), endTime.hour), endTime.minute);
     const taskDuration = isAllDay ? 24 * 60 : actualDurationMinutes;
 
-    updateTask(task.id, {
+    const updates = {
       title: title.trim(),
       description: description.trim() || undefined,
       location: location.trim() || undefined,
@@ -138,16 +141,31 @@ const EditTaskPage = () => {
       endTime: taskEndTime,
       duration: taskDuration,
       tags: selectedTags,
-      repeat: repeatRule || undefined,
       isAllDay: isAllDay || undefined,
-    });
+    };
 
-    toast({
-      title: 'המשימה עודכנה',
-      description: `"${title.trim()}" עודכנה בהצלחה`,
-    });
-
-    navigate(-1);
+    if (isOccurrenceMode && id) {
+      const exceptionId = editOccurrenceOnly(id, updates);
+      if (!exceptionId) {
+        toast({ title: 'שגיאה', description: 'לא ניתן ליצור חריג למופע זה', variant: 'destructive' });
+        return;
+      }
+      toast({
+        title: 'המופע עודכן',
+        description: `"${title.trim()}" עודכן עבור תאריך זה בלבד`,
+      });
+      navigate(`/task/${exceptionId}`, { replace: true });
+    } else {
+      updateTask(task.id, {
+        ...updates,
+        repeat: repeatRule || undefined,
+      });
+      toast({
+        title: 'המשימה עודכנה',
+        description: `"${title.trim()}" עודכנה בהצלחה`,
+      });
+      navigate(-1);
+    }
   };
 
   if (!task) {
@@ -176,6 +194,12 @@ const EditTaskPage = () => {
             <h1 className="text-lg font-bold">עריכת משימה</h1>
             <div className="w-10" />
           </div>
+          {isOccurrenceMode && (
+            <div className="flex items-center gap-2 px-4 pb-3 text-amber-700 dark:text-amber-300" data-testid="banner-occurrence-mode">
+              <GitBranch className="w-4 h-4 flex-shrink-0" />
+              <span className="text-xs font-medium">עורך מופע זה בלבד — הסדרה לא תושפע</span>
+            </div>
+          )}
         </header>
 
         <div className="flex-1 p-6 space-y-6 pb-24">
@@ -367,7 +391,7 @@ const EditTaskPage = () => {
             )}
           </AnimatePresence>
 
-          <div className="space-y-3">
+          {!isOccurrenceMode && <div className="space-y-3">
             {repeatRule && !showRepeatPanel && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium">
                 <Repeat className="w-4 h-4" />
@@ -532,7 +556,7 @@ const EditTaskPage = () => {
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </div>}
         </div>
 
         <div className="fixed bottom-0 inset-x-0 p-4 bg-gradient-to-t from-background via-background to-transparent">

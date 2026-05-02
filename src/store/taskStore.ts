@@ -19,6 +19,7 @@ interface TaskState {
   completeTask: (id: string, completed: boolean) => void;
   moveToStandby: (id: string, notes: string) => void;
   scheduleStandbyTask: (id: string, startTime: Date, endTime: Date) => void;
+  editOccurrenceOnly: (occurrenceId: string, updates: Partial<Task>) => string | undefined;
   
   // Template Actions
   addTemplate: (template: Omit<TaskTemplate, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => TaskTemplate;
@@ -151,6 +152,60 @@ export const useTaskStore = create<TaskState>()(
           tasks: state.tasks.filter((t) => t.id !== resolvedId),
           standbyTasks: [...state.standbyTasks, standbyTask],
         }));
+      },
+
+      editOccurrenceOnly: (occurrenceId, updates) => {
+        if (!occurrenceId.includes('_occ_')) return undefined;
+        const masterId = getMasterTaskId(occurrenceId);
+        const masterTask = get().tasks.find((t) => t.id === masterId);
+        if (!masterTask) return undefined;
+
+        const dateStr = occurrenceId.substring(occurrenceId.lastIndexOf('_occ_') + 5);
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const occDate = new Date(y, m - 1, d);
+        if (isNaN(occDate.getTime())) return undefined;
+
+        const occurrences = expandRecurring(masterTask, startOfDay(occDate), endOfDay(occDate));
+        const occurrence = occurrences.find((occ) => occ.id === occurrenceId);
+        if (!occurrence) return undefined;
+
+        const exceptionId = crypto.randomUUID();
+        const exceptionTask: Task = {
+          ...occurrence,
+          ...updates,
+          id: exceptionId,
+          repeat: undefined,
+          excludedDates: undefined,
+          isOccurrenceException: true,
+          masterTaskId: masterId,
+          occurrenceDate: dateStr,
+          updatedAt: new Date(),
+          createdAt: new Date(),
+          history: [
+            {
+              id: crypto.randomUUID(),
+              taskId: exceptionId,
+              eventType: 'created',
+              timestamp: new Date(),
+              details: `חריג עבור ${dateStr}`,
+            },
+          ],
+        };
+
+        const currentExcluded = masterTask.excludedDates || [];
+        const deduplicatedExcluded = Array.from(new Set([...currentExcluded, dateStr]));
+        set((state) => ({
+          tasks: [
+            ...state.tasks.map((t) =>
+              t.id === masterId
+                ? { ...t, excludedDates: deduplicatedExcluded, updatedAt: new Date() }
+                : t
+            ),
+            exceptionTask,
+          ],
+        }));
+
+        return exceptionId;
       },
 
       scheduleStandbyTask: (id, startTime, endTime) => {
