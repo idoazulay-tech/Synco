@@ -1,0 +1,162 @@
+אתה עובד עכשיו על פרויקט Synco.
+
+המטרה:
+לסגור את שלב 1 של חיבור המשימות ל-PostgreSQL.
+
+לפי הדוח האחרון:
+- נוסף UserTask ב-Prisma.
+- נוספו endpoints:
+  GET /api/user-tasks
+  POST /api/user-tasks
+  PUT /api/user-tasks/:id
+  DELETE /api/user-tasks/:id
+  POST /api/user-tasks/:id/complete
+  POST /api/user-tasks/batch
+- taskStore התחיל להסתנכרן עם השרת.
+- עדיין צריך לוודא ש-migrateLocalTasksToServer רץ פעם אחת בזמן טעינת האפליקציה.
+- עדיין צריך לוודא ש-syncTasksFromServer רץ בזמן טעינת האפליקציה.
+- עדיין צריך לוודא שה-DB הופך למקור האמת, ו-localStorage נשאר fallback בלבד.
+
+חשוב מאוד:
+אל תוסיף פיצ׳רים חדשים.
+אל תיגע ב-Qdrant.
+אל תיגע ב-Auth.
+אל תיגע ב-Google Calendar.
+אל תיגע ב-Mobile.
+אל תיגע ב-schedulePlanner.
+אל תשנה UI.
+אל תשבור recurring tasks.
+אל תשבור editOccurrenceOnly.
+אל תשבור DayView drag and drop.
+אל תמחק localStorage עדיין.
+
+שלב 0: בדיקה לפני שינוי
+הצג את הקבצים הרלוונטיים:
+- src/App.tsx
+- src/main.tsx
+- src/store/taskStore.ts
+- server/routes/user-tasks.ts
+- prisma/schema.prisma
+
+הסבר בקצרה:
+1. איפה נכון להריץ sync בזמן טעינת האפליקציה.
+2. איפה נכון להריץ migrate חד-פעמי.
+3. האם הפונקציות syncTasksFromServer ו-migrateLocalTasksToServer כבר קיימות ב-taskStore.
+4. אם הן קיימות, אל תכתוב אותן מחדש בלי צורך.
+5. אם הן חסרות או חלקיות, תקן רק אותן.
+
+שלב 1: גיבוי
+לפני כל שינוי צור גיבוי:
+cp src/App.tsx src/App.tsx.bak.sync-db
+cp src/store/taskStore.ts src/store/taskStore.ts.bak.sync-db
+
+אם צריך לשנות קובץ נוסף, צור לו גיבוי קודם.
+
+שלב 2: הרצת sync בטעינת האפליקציה
+עדכן את נקודת הטעינה הראשית של האפליקציה כך שבפתיחת האפליקציה יקרה הסדר הבא:
+
+1. בדוק localStorage flag בשם:
+synco_migrated_v1
+
+2. אם flag לא קיים:
+   - הרץ migrateLocalTasksToServer()
+   - אם הצליח, שמור flag:
+     synco_migrated_v1 = true
+
+3. אחרי זה הרץ:
+syncTasksFromServer()
+
+4. אם sync נכשל:
+   - אל תשבור את האפליקציה.
+   - השאר את המשימות המקומיות כ-fallback.
+   - הדפס אזהרה ברורה ל-console.
+
+חשוב:
+- אל תריץ migration בכל refresh אם flag כבר קיים.
+- אל תיצור כפילויות ב-DB.
+- אם משימה כבר קיימת ב-DB, אל תעלה אותה שוב.
+- שמור id או serverId בצורה שמונעת העלאה כפולה.
+- localStorage נשאר fallback בלבד.
+
+שלב 3: מניעת כפילויות
+בדוק את POST /api/user-tasks/batch.
+ודא שהוא לא יוצר כפילויות אם אותה משימה כבר עלתה.
+
+אם אין מנגנון מניעת כפילויות, הוסף אחד פשוט:
+- אם למשימה יש serverId, לא מעלים אותה שוב.
+- אם אין serverId, בדוק לפי localId/originalTaskJson/id.
+- אל תעשה מנגנון מסובך מדי.
+
+שלב 4: בדיקות
+הרץ:
+npm run build
+
+אם build נכשל:
+עצור ודווח.
+
+אם build הצליח:
+הרץ בדיקות API:
+
+1. GET /api/health
+2. GET /api/user-tasks?userId=default-user
+3. POST /api/user-tasks עם משימת בדיקה
+4. GET /api/user-tasks?userId=default-user
+5. POST /api/user-tasks/batch עם שתי משימות בדיקה
+6. GET /api/user-tasks?userId=default-user
+
+בדוק שאין כפילויות.
+
+שלב 5: בדיקת UI
+בדוק שהאפליקציה עדיין עולה.
+בדוק:
+- Home
+- Day
+- Add Task
+- Edit Task
+- Month
+- Statistics
+- Archive
+
+אל תשנה UI, רק ודא שלא נשבר.
+
+שלב 6: דוח סופי בעברית
+תוציא דוח בשם:
+
+# דוח סגירת שלב 1 - Data Core
+
+כלול:
+
+## 1. מה שונה
+רשימת קבצים ושינויים.
+
+## 2. מה גובה
+רשימת קבצי backup.
+
+## 3. איך sync עובד עכשיו
+הסבר קצר של הזרימה:
+App load → migrate once → sync from server → fallback if fail
+
+## 4. האם נמנעות כפילויות
+כן/לא, ואיך.
+
+## 5. תוצאות build
+עבר/נכשל.
+
+## 6. תוצאות API
+טבלה:
+בדיקה | תוצאה | הערה
+
+## 7. תוצאות UI
+מה נבדק ומה עובד.
+
+## 8. האם שלב 1 סגור
+ענה רק:
+כן / לא
+
+## 9. אם לא, מה הפעולה היחידה שנשארה
+תן פעולה אחת בלבד.
+
+## 10. אם כן, השלב הבא
+כתוב:
+השלב הבא הוא חיבור schedulePlanner ל-frontend דרך endpoint חדש:
+POST /api/planner/schedule

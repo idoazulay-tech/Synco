@@ -1,10 +1,8 @@
-import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
-import { useTaskStore } from "@/store/taskStore";
 import HomePage from "./pages/HomePage";
 import DayViewPage from "./pages/DayViewPage";
 import MonthViewPage from "./pages/MonthViewPage";
@@ -21,31 +19,6 @@ import ShikulPage from "./pages/ShikulPage";
 import NotFound from "./pages/NotFound";
 import OnboardingPage from "./pages/OnboardingPage";
 import PriorityPlannerPage from "./pages/PriorityPlannerPage";
-
-const MIGRATION_FLAG = 'synco_migrated_v1';
-
-const AppInitializer = () => {
-  const { migrateLocalTasksToServer, syncTasksFromServer } = useTaskStore();
-
-  useEffect(() => {
-    const run = async () => {
-      try {
-        const alreadyMigrated = localStorage.getItem(MIGRATION_FLAG);
-        if (!alreadyMigrated) {
-          await migrateLocalTasksToServer();
-          localStorage.setItem(MIGRATION_FLAG, 'true');
-          console.log('[Synco] Migration to DB complete.');
-        }
-        await syncTasksFromServer();
-      } catch (e) {
-        console.warn('[Synco] DB sync failed — using local data as fallback:', e);
-      }
-    };
-    run();
-  }, []);
-
-  return null;
-};
 
 const RescheduleRedirect = () => {
   const { id } = useParams<{ id: string }>();
@@ -74,7 +47,6 @@ const queryClient = new QueryClient({
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <AppInitializer />
       <Toaster />
       <Sonner />
       <BrowserRouter>
