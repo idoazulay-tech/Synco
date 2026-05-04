@@ -10,7 +10,6 @@ import { useTaskTimer } from '@/hooks/useTaskTimer';
 import { Task } from '@/types/task';
 import { cn } from '@/lib/utils';
 import { isRecurringOccurrence } from '@/lib/recurringEngine';
-import { PlanMyDayButton } from '@/components/planner/PlanMyDayButton';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -479,13 +478,6 @@ const DayViewPage = () => {
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
-          </div>
-
-          <div className="flex justify-center pb-2">
-            <PlanMyDayButton
-              date={selectedDate}
-              tasks={getTasksForDay(selectedDate)}
-            />
           </div>
         </header>
 

@@ -1,0 +1,222 @@
+שלב 2ב בפרויקט Synco: חיבור כפתור "סדר לי את היום" ל-frontend בתור Preview בלבד.
+
+חשוב מאוד:
+אל תשנה את מנוע השיבוץ.
+אל תשנה את buildSchedule.
+אל תשנה את adapter שנוצר בשלב הקודם.
+אל תשמור שיבוץ ב-DB בשלב הזה.
+אל תשנה מבנה DB.
+אל תעשה refactor גדול.
+אל תחליף את DayViewPage כולו.
+אל תיגע ב-recurringEngine.
+אל תיגע ב-hebrewDateParser.
+אל תוסיף Authentication.
+אל תוסיף Google Calendar.
+אל תוסיף פיצ׳רים חדשים מעבר למה שמוגדר פה.
+
+המטרה:
+לחבר את endpoint הקיים:
+POST /api/planner/schedule
+
+למסך היום, כך שהמשתמש יוכל ללחוץ על כפתור:
+"סדר לי את היום"
+
+ולקבל הצעת שיבוץ בלבד, בלי לשנות את המשימות בפועל.
+
+רקע קיים:
+כבר קיים endpoint:
+POST /api/planner/schedule
+
+הוא מחזיר response בפורמט:
+{
+  ok: true,
+  date: "2026-05-04",
+  userId: "default-user",
+  scheduledTasks: [
+    {
+      id: "...",
+      title: "...",
+      startTime: "09:00",
+      endTime: "09:30",
+      durationMinutes: 30,
+      priority: "high",
+      reason: "שובץ בזמן פנוי מתאים",
+      confidence: 0.8
+    }
+  ],
+  unscheduledTasks: [],
+  warnings: [],
+  summary: {
+    totalTasks: 3,
+    scheduledCount: 3,
+    unscheduledCount: 0,
+    dayLoadMinutes: 210
+  }
+}
+
+מה צריך לבצע:
+
+1. לפני כל שינוי:
+   - הצג את הקבצים הרלוונטיים שאתה עומד לבדוק.
+   - בדוק איפה הכי נכון להוסיף את הכפתור.
+   - אל תחליף קובץ גדול שלם אם אפשר לעשות שינוי קטן.
+   - גבה כל קובץ שאתה משנה.
+
+2. אתר את מסך היום:
+   כנראה:
+   src/pages/DayViewPage.tsx
+
+3. בגלל ש-DayViewPage גדול ורגיש:
+   - עדיף ליצור component חדש במקום להעמיס עליו.
+   - צור component חדש:
+     src/components/planner/PlanMyDayButton.tsx
+
+4. צור גם client helper אם אין קיים:
+   src/lib/api/plannerClient.ts
+
+   הפונקציה צריכה להיות:
+   scheduleDayPreview(dateIso, tasks)
+
+   והיא צריכה לשלוח:
+   POST /api/planner/schedule
+
+5. הכפתור:
+   טקסט:
+   "סדר לי את היום"
+
+   בזמן טעינה:
+   "סינקו מסדר לך את היום..."
+
+   אם יש שגיאה:
+   הצג הודעה פשוטה:
+   "לא הצלחתי לסדר את היום כרגע. נסה שוב."
+
+6. תצוגת Preview:
+   אחרי שחוזר response תקין, הצג modal / panel פשוט בתוך המסך.
+
+   הכותרת:
+   "הצעת הסידור של סינקו"
+
+   הצג:
+   - totalTasks
+   - scheduledCount
+   - unscheduledCount
+   - dayLoadMinutes
+
+   לאחר מכן הצג רשימת scheduledTasks:
+   startTime-endTime title
+   priority
+   reason
+
+   אם יש unscheduledTasks:
+   הצג אזור:
+   "משימות שלא שובצו"
+
+   אם יש warnings:
+   הצג אזור:
+   "דברים שכדאי לשים לב אליהם"
+
+7. כפתורים ב-Preview:
+   - "נראה טוב"
+   - "לא עכשיו"
+
+   בשלב הזה:
+   "נראה טוב" לא שומר ל-DB.
+   הוא רק סוגר את ה-preview ומציג הודעה קטנה:
+   "מעולה. בשלב הבא נחבר שמירה של הסידור."
+
+   "לא עכשיו" סוגר את ה-preview בלי שינוי.
+
+8. חיבור ל-DayViewPage:
+   הוסף את PlanMyDayButton באזור העליון של מסך היום, ליד כותרת היום או ליד controls קיימים.
+   אל תשנה את מבנה כל המסך.
+   אל תשבור drag & drop.
+   אל תשנה את הדרך שבה משימות מוצגות כרגע.
+
+9. מקור המשימות:
+   אם DayViewPage כבר מחזיק tasks של היום, העבר אותן ל-PlanMyDayButton.
+   אם אין גישה פשוטה, השתמש ב-taskStore הקיים כדי לשלוף את משימות היום.
+   אל תבנה store חדש.
+
+10. התאמת task לפורמט ה-API:
+   אם ה-endpoint יודע לקבל body.tasks בפורמט UserTask, שלח את המשימות כפי שהן אם הן כבר מתאימות.
+   אם המשימות מה-frontend שונות, צור adapter קטן בצד frontend:
+   src/lib/adapters/taskToPlannerPayload.ts
+
+   אל תשנה את type המקורי של Task.
+
+11. בדיקות חובה:
+   אחרי השינוי הרץ:
+   npm run build
+
+   בדוק:
+   - אין TypeScript errors
+   - DayViewPage נטען
+   - הכפתור מוצג
+   - לחיצה שולחת request ל-/api/planner/schedule
+   - response מוצג ב-preview
+   - "נראה טוב" סוגר preview ולא שומר DB
+   - "לא עכשיו" סוגר preview
+   - אין שינוי במשימות אחרי preview
+   - /api/planner/parse עדיין עובד
+   - /api/health עדיין עובד
+
+12. בדיקות curl:
+   הרץ curl ל:
+   GET /api/health
+   POST /api/planner/schedule
+   POST /api/planner/parse
+
+13. פלט סופי:
+   החזר דוח בעברית במבנה הבא:
+
+   # דוח שלב 2ב - חיבור סדר לי את היום
+
+   ## 1. מה נבדק לפני שינוי
+   כתוב אילו קבצים נבדקו ולמה.
+
+   ## 2. מה שונה
+   טבלה:
+   קובץ | שינוי | למה
+
+   ## 3. מה גובה
+   טבלה:
+   קובץ מקורי | קובץ גיבוי
+
+   ## 4. איך הזרימה עובדת עכשיו
+   תאר:
+   לחיצה על כפתור
+   → קריאת API
+   → קבלת response
+   → הצגת preview
+   → סגירה ללא שמירה
+
+   ## 5. האם נשמר משהו ב-DB
+   התשובה צריכה להיות:
+   לא. זה Preview בלבד.
+
+   ## 6. תוצאות build
+   כתוב אם עבר או נכשל.
+
+   ## 7. תוצאות API
+   טבלה:
+   בדיקה | תוצאה | הערה
+
+   ## 8. תוצאות UI
+   טבלה:
+   פעולה | תוצאה | הערה
+
+   ## 9. דברים שלא שונו בכוונה
+   למשל:
+   - לא נשמר שיבוץ ב-DB
+   - לא נוסף Auth
+   - לא נוסף Google Calendar
+   - לא שונה recurringEngine
+   - לא שונה schedulePlanner
+
+   ## 10. האם שלב 2ב סגור
+   כן / לא
+
+   ## 11. השלב הבא
+   השלב הבא צריך להיות:
+   חיבור כפתור "אשר סידור" שישמור את זמני השיבוץ ב-DB רק אחרי אישור משתמש.
