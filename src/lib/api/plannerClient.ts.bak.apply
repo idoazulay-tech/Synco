@@ -34,17 +34,6 @@ export interface SchedulePreviewResponse {
   summary: SchedulePreviewSummary;
 }
 
-export interface ApplyScheduleResponse {
-  ok: boolean;
-  date: string;
-  userId: string;
-  updatedCount: number;
-  updatedTasks: { id: string; title: string; startTime: string; endTime: string }[];
-  skipped: { id: string; reason: string }[];
-  warnings: string[];
-  error?: string;
-}
-
 function taskToPayload(task: Task) {
   return {
     id: task.id,
@@ -87,35 +76,4 @@ export async function scheduleDayPreview(
   }
 
   return res.json();
-}
-
-export async function applySchedule(
-  dateIso: string,
-  scheduledTasks: ScheduledTaskPreview[],
-  userId = 'default-user'
-): Promise<ApplyScheduleResponse> {
-  const items = scheduledTasks.map(t => ({
-    taskId:    t.id,
-    startTime: t.startTime,
-    endTime:   t.endTime,
-  }));
-
-  const res = await fetch('/api/planner/apply-schedule', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userId, date: dateIso, items }),
-  });
-
-  const data: ApplyScheduleResponse = await res.json().catch(() => ({
-    ok: false,
-    date: dateIso,
-    userId,
-    updatedCount: 0,
-    updatedTasks: [],
-    skipped: [],
-    warnings: [],
-    error: `HTTP ${res.status}`,
-  }));
-
-  return data;
 }
