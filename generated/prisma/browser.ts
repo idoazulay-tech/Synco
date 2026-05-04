@@ -62,3 +62,8 @@ export type BrainFlag = Prisma.BrainFlagModel
  * 
  */
 export type OnboardingState = Prisma.OnboardingStateModel
+/**
+ * Model UserTask
+ * 
+ */
+export type UserTask = Prisma.UserTaskModel

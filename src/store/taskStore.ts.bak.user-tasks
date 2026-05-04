@@ -4,56 +4,6 @@ import { Task, StandbyTask, HistoryEntry, Tag, DEFAULT_TAGS, TaskTemplate, Templ
 import { addHours, addMinutes, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { expandRecurring, getMasterTaskId } from '@/lib/recurringEngine';
 
-const USER_ID = 'default-user';
-
-// ─── API helpers (fire-and-forget, never block UI) ───────────────────────────
-
-async function apiPost(task: Task) {
-  try {
-    await fetch('/api/user-tasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: USER_ID, ...task }),
-    });
-  } catch (e) {
-    console.warn('[taskStore] apiPost failed (local copy safe):', e);
-  }
-}
-
-async function apiPut(id: string, task: Partial<Task> & { id: string }) {
-  try {
-    await fetch(`/api/user-tasks/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: USER_ID, ...task }),
-    });
-  } catch (e) {
-    console.warn('[taskStore] apiPut failed (local copy safe):', e);
-  }
-}
-
-async function apiDelete(id: string) {
-  try {
-    await fetch(`/api/user-tasks/${id}`, { method: 'DELETE' });
-  } catch (e) {
-    console.warn('[taskStore] apiDelete failed (local copy safe):', e);
-  }
-}
-
-async function apiComplete(id: string, completed: boolean, history: HistoryEntry[]) {
-  try {
-    await fetch(`/api/user-tasks/${id}/complete`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ completed, historyJson: history }),
-    });
-  } catch (e) {
-    console.warn('[taskStore] apiComplete failed (local copy safe):', e);
-  }
-}
-
-// ─── Store interface ──────────────────────────────────────────────────────────
-
 interface TaskState {
   tasks: Task[];
   standbyTasks: StandbyTask[];
@@ -61,7 +11,7 @@ interface TaskState {
   tags: Tag[];
   templates: TaskTemplate[];
   templateCategories: TemplateCategory[];
-
+  
   // Task Actions
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'history'>) => Task;
   updateTask: (id: string, updates: Partial<Task>) => void;
@@ -70,36 +20,31 @@ interface TaskState {
   moveToStandby: (id: string, notes: string) => void;
   scheduleStandbyTask: (id: string, startTime: Date, endTime: Date) => void;
   editOccurrenceOnly: (occurrenceId: string, updates: Partial<Task>) => string | undefined;
-
+  
   // Template Actions
   addTemplate: (template: Omit<TaskTemplate, 'id' | 'createdAt' | 'updatedAt' | 'usageCount'>) => TaskTemplate;
   updateTemplate: (id: string, updates: Partial<TaskTemplate>) => void;
   deleteTemplate: (id: string) => void;
   scheduleTemplate: (id: string, startTime: Date) => Task;
   getTemplatesSorted: () => TaskTemplate[];
-
+  
   // Category Actions
   addCategory: (category: Omit<TemplateCategory, 'id' | 'createdAt' | 'order'>) => TemplateCategory;
   updateCategory: (id: string, updates: Partial<TemplateCategory>) => void;
   deleteCategory: (id: string) => void;
-
+  
   // Getters
   getCurrentTask: () => Task | null;
   getTasksForDay: (date: Date) => Task[];
   getTaskById: (id: string) => Task | undefined;
-
+  
   // History
   addHistoryEntry: (taskId: string, entry: Omit<HistoryEntry, 'id' | 'taskId' | 'timestamp'>) => void;
-
+  
   // Archive
   clearArchive: () => void;
-
-  // Sync
-  syncTasksFromServer: () => Promise<void>;
-  migrateLocalTasksToServer: () => Promise<void>;
 }
 
-// ─── Store implementation ────────────────────────────────────────────────────
 
 export const useTaskStore = create<TaskState>()(
   persist(
@@ -125,46 +70,37 @@ export const useTaskStore = create<TaskState>()(
           }],
         };
         newTask.history[0].taskId = newTask.id;
-
-        set((state) => ({ tasks: [...state.tasks, newTask] }));
-
-        // fire-and-forget — UI is already updated above
-        apiPost(newTask);
-
+        
+        set((state) => ({
+          tasks: [...state.tasks, newTask],
+        }));
+        
         return newTask;
       },
 
       updateTask: (id, updates) => {
         const resolvedId = id.includes('_occ_') ? getMasterTaskId(id) : id;
-        let updatedTask: Task | undefined;
-
-        set((state) => {
-          const mapped = state.tasks.map((task) => {
-            if (task.id !== resolvedId) return task;
-            const t = {
-              ...task,
-              ...updates,
-              updatedAt: new Date(),
-              history: [
-                ...task.history,
-                {
-                  id: crypto.randomUUID(),
-                  taskId: resolvedId,
-                  eventType: 'modified' as const,
-                  timestamp: new Date(),
-                  details: JSON.stringify(updates),
-                },
-              ],
-            };
-            updatedTask = t;
-            return t;
-          });
-          return { tasks: mapped };
-        });
-
-        if (updatedTask) {
-          apiPut(resolvedId, updatedTask);
-        }
+        set((state) => ({
+          tasks: state.tasks.map((task) =>
+            task.id === resolvedId
+              ? {
+                  ...task,
+                  ...updates,
+                  updatedAt: new Date(),
+                  history: [
+                    ...task.history,
+                    {
+                      id: crypto.randomUUID(),
+                      taskId: resolvedId,
+                      eventType: 'modified',
+                      timestamp: new Date(),
+                      details: JSON.stringify(updates),
+                    },
+                  ],
+                }
+              : task
+          ),
+        }));
       },
 
       deleteTask: (id) => {
@@ -172,7 +108,6 @@ export const useTaskStore = create<TaskState>()(
         set((state) => ({
           tasks: state.tasks.filter((task) => task.id !== resolvedId),
         }));
-        apiDelete(resolvedId);
       },
 
       completeTask: (id, completed) => {
@@ -200,8 +135,6 @@ export const useTaskStore = create<TaskState>()(
           tasks: state.tasks.filter((t) => t.id !== resolvedId),
           archivedTasks: [...state.archivedTasks, updatedTask],
         }));
-
-        apiComplete(resolvedId, completed, updatedTask.history);
       },
 
       moveToStandby: (id, notes) => {
@@ -219,9 +152,6 @@ export const useTaskStore = create<TaskState>()(
           tasks: state.tasks.filter((t) => t.id !== resolvedId),
           standbyTasks: [...state.standbyTasks, standbyTask],
         }));
-
-        // soft-delete from active tasks on server
-        apiDelete(resolvedId);
       },
 
       editOccurrenceOnly: (occurrenceId, updates) => {
@@ -264,21 +194,16 @@ export const useTaskStore = create<TaskState>()(
 
         const currentExcluded = masterTask.excludedDates || [];
         const deduplicatedExcluded = Array.from(new Set([...currentExcluded, dateStr]));
-
-        let updatedMaster: Task | undefined;
-        set((state) => {
-          const mapped = state.tasks.map((t) => {
-            if (t.id !== masterId) return t;
-            const u = { ...t, excludedDates: deduplicatedExcluded, updatedAt: new Date() };
-            updatedMaster = u;
-            return u;
-          });
-          return { tasks: [...mapped, exceptionTask] };
-        });
-
-        // sync both to server
-        apiPost(exceptionTask);
-        if (updatedMaster) apiPut(masterId, updatedMaster);
+        set((state) => ({
+          tasks: [
+            ...state.tasks.map((t) =>
+              t.id === masterId
+                ? { ...t, excludedDates: deduplicatedExcluded, updatedAt: new Date() }
+                : t
+            ),
+            exceptionTask,
+          ],
+        }));
 
         return exceptionId;
       },
@@ -310,23 +235,24 @@ export const useTaskStore = create<TaskState>()(
           standbyTasks: state.standbyTasks.filter((t) => t.id !== resolvedId),
           tasks: [...state.tasks, scheduledTask],
         }));
-
-        apiPost(scheduledTask);
       },
 
       getCurrentTask: () => {
         const now = new Date();
         const todayTasks = get().getTasksForDay(now);
-
+        
         const activeTasks = todayTasks.filter((task) => {
-          if (task.status === 'completed' || task.status === 'not_completed') return false;
+          if (task.status === 'completed' || task.status === 'not_completed') {
+            return false;
+          }
           const startTime = new Date(task.startTime);
           const endTime = new Date(task.endTime);
           return isWithinInterval(now, { start: startTime, end: endTime });
         });
-
+        
         if (activeTasks.length === 0) return null;
-        return activeTasks.sort((a, b) =>
+        
+        return activeTasks.sort((a, b) => 
           new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
         )[0];
       },
@@ -334,39 +260,33 @@ export const useTaskStore = create<TaskState>()(
       getTasksForDay: (date: Date) => {
         const dayStart = startOfDay(date);
         const dayEnd = endOfDay(date);
-
+        
         const regularTasks = get().tasks.filter((task) => {
           const startTime = new Date(task.startTime);
           const endTime = new Date(task.endTime);
-          return (
-            isWithinInterval(startTime, { start: dayStart, end: dayEnd }) ||
-            (isWithinInterval(endTime, { start: dayStart, end: dayEnd }) &&
-              !isWithinInterval(startTime, { start: dayStart, end: dayEnd }))
-          );
+          return isWithinInterval(startTime, { start: dayStart, end: dayEnd }) ||
+            (isWithinInterval(endTime, { start: dayStart, end: dayEnd }) && !isWithinInterval(startTime, { start: dayStart, end: dayEnd }));
         });
 
         const recurringOccurrences: Task[] = [];
         get().tasks.forEach((task) => {
           if (task.repeat) {
             const occurrences = expandRecurring(task, dayStart, dayEnd);
-            recurringOccurrences.push(
-              ...occurrences.filter((occ) => {
-                const occStart = new Date(occ.startTime);
-                return isWithinInterval(occStart, { start: dayStart, end: dayEnd });
-              })
-            );
+            recurringOccurrences.push(...occurrences.filter((occ) => {
+              const occStart = new Date(occ.startTime);
+              return isWithinInterval(occStart, { start: dayStart, end: dayEnd });
+            }));
           }
         });
 
-        return [...regularTasks, ...recurringOccurrences].sort(
-          (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-        );
+        return [...regularTasks, ...recurringOccurrences]
+          .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
       },
 
       getTaskById: (id: string) => {
         const direct = get().tasks.find((task) => task.id === id);
         if (direct) return direct;
-
+        
         if (id.includes('_occ_')) {
           const masterId = getMasterTaskId(id);
           const master = get().tasks.find((task) => task.id === masterId);
@@ -409,88 +329,7 @@ export const useTaskStore = create<TaskState>()(
         set({ archivedTasks: [] });
       },
 
-      // ─── Sync functions ───────────────────────────────────────────────────
-
-      syncTasksFromServer: async () => {
-        try {
-          const res = await fetch(`/api/user-tasks?userId=${USER_ID}`);
-          if (!res.ok) return;
-          const serverTasks: any[] = await res.json();
-
-          // Build a map of server tasks by id
-          const serverMap = new Map(serverTasks.map((t) => [t.id, t]));
-
-          set((state) => {
-            // For tasks that exist on server, server wins (fresher updatedAt)
-            // For tasks only in local, keep them (they'll be pushed on next save)
-            const merged = state.tasks.map((localTask) => {
-              const serverTask = serverMap.get(localTask.id);
-              if (!serverTask) return localTask;
-              const serverUpdated = new Date(serverTask.updatedAt).getTime();
-              const localUpdated = new Date(localTask.updatedAt).getTime();
-              if (serverUpdated > localUpdated) {
-                return {
-                  ...serverTask,
-                  startTime: new Date(serverTask.startTime),
-                  endTime: new Date(serverTask.endTime),
-                  createdAt: new Date(serverTask.createdAt),
-                  updatedAt: new Date(serverTask.updatedAt),
-                  completedAt: serverTask.completedAt ? new Date(serverTask.completedAt) : undefined,
-                  history: (serverTask.history || []).map((h: any) => ({
-                    ...h,
-                    timestamp: new Date(h.timestamp),
-                  })),
-                };
-              }
-              return localTask;
-            });
-
-            // Add server tasks not present locally
-            const localIds = new Set(state.tasks.map((t) => t.id));
-            const newFromServer = serverTasks
-              .filter((st) => !localIds.has(st.id))
-              .map((st) => ({
-                ...st,
-                startTime: new Date(st.startTime),
-                endTime: new Date(st.endTime),
-                createdAt: new Date(st.createdAt),
-                updatedAt: new Date(st.updatedAt),
-                completedAt: st.completedAt ? new Date(st.completedAt) : undefined,
-                history: (st.history || []).map((h: any) => ({
-                  ...h,
-                  timestamp: new Date(h.timestamp),
-                })),
-              }));
-
-            return { tasks: [...merged, ...newFromServer] };
-          });
-        } catch (e) {
-          console.warn('[taskStore] syncTasksFromServer failed:', e);
-        }
-      },
-
-      migrateLocalTasksToServer: async () => {
-        try {
-          const localTasks = get().tasks;
-          if (localTasks.length === 0) return;
-
-          const res = await fetch('/api/user-tasks/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: USER_ID, tasks: localTasks }),
-          });
-
-          if (res.ok) {
-            const result = await res.json();
-            console.log(`[taskStore] Migration complete: ${result.succeeded} ok, ${result.failed} failed`);
-          }
-        } catch (e) {
-          console.warn('[taskStore] migrateLocalTasksToServer failed (local copy safe):', e);
-        }
-      },
-
-      // ─── Template Actions ─────────────────────────────────────────────────
-
+      // Template Actions
       addTemplate: (templateData) => {
         const newTemplate: TaskTemplate = {
           ...templateData,
@@ -499,7 +338,11 @@ export const useTaskStore = create<TaskState>()(
           createdAt: new Date(),
           updatedAt: new Date(),
         };
-        set((state) => ({ templates: [...state.templates, newTemplate] }));
+        
+        set((state) => ({
+          templates: [...state.templates, newTemplate],
+        }));
+        
         return newTemplate;
       },
 
@@ -524,7 +367,8 @@ export const useTaskStore = create<TaskState>()(
         if (!template) throw new Error('Template not found');
 
         const endTime = addMinutes(startTime, template.duration);
-
+        
+        // Update template usage stats
         set((state) => ({
           templates: state.templates.map((t) =>
             t.id === id
@@ -533,6 +377,7 @@ export const useTaskStore = create<TaskState>()(
           ),
         }));
 
+        // Create the scheduled task
         const newTask: Task = {
           id: crypto.randomUUID(),
           title: template.title,
@@ -554,33 +399,44 @@ export const useTaskStore = create<TaskState>()(
           }],
         };
         newTask.history[0].taskId = newTask.id;
-
-        set((state) => ({ tasks: [...state.tasks, newTask] }));
-        apiPost(newTask);
-
+        
+        set((state) => ({
+          tasks: [...state.tasks, newTask],
+        }));
+        
         return newTask;
       },
 
       getTemplatesSorted: () => {
         const templates = get().templates;
+        
+        // Sort by: recently used first, then by frequency, then by creation date
         return [...templates].sort((a, b) => {
+          // First: recently used (last 24 hours get priority)
           const now = Date.now();
           const dayAgo = now - 24 * 60 * 60 * 1000;
           const aRecentlyUsed = a.lastUsedAt && a.lastUsedAt.getTime() > dayAgo;
           const bRecentlyUsed = b.lastUsedAt && b.lastUsedAt.getTime() > dayAgo;
-
+          
           if (aRecentlyUsed && !bRecentlyUsed) return -1;
           if (!aRecentlyUsed && bRecentlyUsed) return 1;
+          
+          // If both recently used, sort by most recent
           if (aRecentlyUsed && bRecentlyUsed) {
             return (b.lastUsedAt?.getTime() || 0) - (a.lastUsedAt?.getTime() || 0);
           }
-          if (a.usageCount !== b.usageCount) return b.usageCount - a.usageCount;
+          
+          // Then: by usage frequency
+          if (a.usageCount !== b.usageCount) {
+            return b.usageCount - a.usageCount;
+          }
+          
+          // Finally: by creation date (newest first)
           return b.createdAt.getTime() - a.createdAt.getTime();
         });
       },
 
-      // ─── Category Actions ─────────────────────────────────────────────────
-
+      // Category Actions
       addCategory: (categoryData) => {
         const categories = get().templateCategories;
         const newCategory: TemplateCategory = {
@@ -589,9 +445,11 @@ export const useTaskStore = create<TaskState>()(
           order: categories.length,
           createdAt: new Date(),
         };
+        
         set((state) => ({
           templateCategories: [...state.templateCategories, newCategory],
         }));
+        
         return newCategory;
       },
 
@@ -606,6 +464,7 @@ export const useTaskStore = create<TaskState>()(
       deleteCategory: (id) => {
         set((state) => ({
           templateCategories: state.templateCategories.filter((c) => c.id !== id),
+          // Also remove category from templates
           templates: state.templates.map((t) =>
             t.categoryId === id ? { ...t, categoryId: undefined } : t
           ),
@@ -624,42 +483,56 @@ export const useTaskStore = create<TaskState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-
-        state.tasks = state.tasks.map((task) => ({
+        
+        // Rehydrate Date fields for tasks
+        state.tasks = state.tasks.map(task => ({
           ...task,
           startTime: new Date(task.startTime),
           endTime: new Date(task.endTime),
           createdAt: new Date(task.createdAt),
           updatedAt: new Date(task.updatedAt),
           completedAt: task.completedAt ? new Date(task.completedAt) : undefined,
-          history: task.history.map((h) => ({ ...h, timestamp: new Date(h.timestamp) })),
+          history: task.history.map(h => ({
+            ...h,
+            timestamp: new Date(h.timestamp),
+          })),
         }));
-
-        state.standbyTasks = state.standbyTasks.map((task) => ({
+        
+        // Rehydrate Date fields for standbyTasks
+        state.standbyTasks = state.standbyTasks.map(task => ({
           ...task,
           createdAt: new Date(task.createdAt),
           updatedAt: new Date(task.updatedAt),
-          history: task.history.map((h) => ({ ...h, timestamp: new Date(h.timestamp) })),
+          history: task.history.map(h => ({
+            ...h,
+            timestamp: new Date(h.timestamp),
+          })),
         }));
-
-        state.archivedTasks = state.archivedTasks.map((task) => ({
+        
+        // Rehydrate Date fields for archivedTasks
+        state.archivedTasks = state.archivedTasks.map(task => ({
           ...task,
           startTime: new Date(task.startTime),
           endTime: new Date(task.endTime),
           createdAt: new Date(task.createdAt),
           updatedAt: new Date(task.updatedAt),
           completedAt: task.completedAt ? new Date(task.completedAt) : undefined,
-          history: task.history.map((h) => ({ ...h, timestamp: new Date(h.timestamp) })),
+          history: task.history.map(h => ({
+            ...h,
+            timestamp: new Date(h.timestamp),
+          })),
         }));
-
-        state.templates = (state.templates || []).map((template) => ({
+        
+        // Rehydrate Date fields for templates
+        state.templates = (state.templates || []).map(template => ({
           ...template,
           createdAt: new Date(template.createdAt),
           updatedAt: new Date(template.updatedAt),
           lastUsedAt: template.lastUsedAt ? new Date(template.lastUsedAt) : undefined,
         }));
-
-        state.templateCategories = (state.templateCategories || []).map((cat) => ({
+        
+        // Rehydrate Date fields for templateCategories
+        state.templateCategories = (state.templateCategories || []).map(cat => ({
           ...cat,
           createdAt: new Date(cat.createdAt),
         }));

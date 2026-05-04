@@ -392,7 +392,8 @@ export const ModelName = {
   RegulationLog: 'RegulationLog',
   UserMetrics: 'UserMetrics',
   BrainFlag: 'BrainFlag',
-  OnboardingState: 'OnboardingState'
+  OnboardingState: 'OnboardingState',
+  UserTask: 'UserTask'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -408,7 +409,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "taskFile" | "taskRun" | "runStep" | "insightLog" | "userSettings" | "regulationLog" | "userMetrics" | "brainFlag" | "onboardingState"
+    modelProps: "taskFile" | "taskRun" | "runStep" | "insightLog" | "userSettings" | "regulationLog" | "userMetrics" | "brainFlag" | "onboardingState" | "userTask"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1078,6 +1079,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    UserTask: {
+      payload: Prisma.$UserTaskPayload<ExtArgs>
+      fields: Prisma.UserTaskFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.UserTaskFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserTaskPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.UserTaskFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserTaskPayload>
+        }
+        findFirst: {
+          args: Prisma.UserTaskFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserTaskPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.UserTaskFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserTaskPayload>
+        }
+        findMany: {
+          args: Prisma.UserTaskFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserTaskPayload>[]
+        }
+        create: {
+          args: Prisma.UserTaskCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserTaskPayload>
+        }
+        createMany: {
+          args: Prisma.UserTaskCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.UserTaskCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserTaskPayload>[]
+        }
+        delete: {
+          args: Prisma.UserTaskDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserTaskPayload>
+        }
+        update: {
+          args: Prisma.UserTaskUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserTaskPayload>
+        }
+        deleteMany: {
+          args: Prisma.UserTaskDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.UserTaskUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.UserTaskUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserTaskPayload>[]
+        }
+        upsert: {
+          args: Prisma.UserTaskUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserTaskPayload>
+        }
+        aggregate: {
+          args: Prisma.UserTaskAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateUserTask>
+        }
+        groupBy: {
+          args: Prisma.UserTaskGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserTaskGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.UserTaskCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserTaskCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1240,6 +1315,37 @@ export const OnboardingStateScalarFieldEnum = {
 } as const
 
 export type OnboardingStateScalarFieldEnum = (typeof OnboardingStateScalarFieldEnum)[keyof typeof OnboardingStateScalarFieldEnum]
+
+
+export const UserTaskScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  title: 'title',
+  description: 'description',
+  location: 'location',
+  startTime: 'startTime',
+  endTime: 'endTime',
+  duration: 'duration',
+  status: 'status',
+  priority: 'priority',
+  flexibility: 'flexibility',
+  isAllDay: 'isAllDay',
+  isRecurring: 'isRecurring',
+  recurringRuleJson: 'recurringRuleJson',
+  excludedDates: 'excludedDates',
+  isOccurrenceException: 'isOccurrenceException',
+  masterTaskId: 'masterTaskId',
+  occurrenceDate: 'occurrenceDate',
+  tagsJson: 'tagsJson',
+  historyJson: 'historyJson',
+  createdFromJson: 'createdFromJson',
+  deletedAt: 'deletedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  completedAt: 'completedAt'
+} as const
+
+export type UserTaskScalarFieldEnum = (typeof UserTaskScalarFieldEnum)[keyof typeof UserTaskScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1546,6 +1652,7 @@ export type GlobalOmitConfig = {
   userMetrics?: Prisma.UserMetricsOmit
   brainFlag?: Prisma.BrainFlagOmit
   onboardingState?: Prisma.OnboardingStateOmit
+  userTask?: Prisma.UserTaskOmit
 }
 
 /* Types for Logging */

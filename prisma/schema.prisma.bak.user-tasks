@@ -143,33 +143,3 @@ enum OnboardingStatus {
   COMPLETED
   SKIPPED_PARTIAL
 }
-
-model UserTask {
-  id                    String    @id
-  userId                String    @default("default-user")
-  title                 String
-  description           String?
-  location              String?
-  startTime             DateTime
-  endTime               DateTime
-  duration              Int
-  status                String    @default("pending")
-  priority              String?
-  flexibility           String?
-  isAllDay              Boolean   @default(false)
-  isRecurring           Boolean   @default(false)
-  recurringRuleJson     Json?
-  excludedDates         String[]
-  isOccurrenceException Boolean   @default(false)
-  masterTaskId          String?
-  occurrenceDate        String?
-  tagsJson              Json
-  historyJson           Json
-  createdFromJson       Json?
-  deletedAt             DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  completedAt           DateTime?
-
-  @@index([userId, deletedAt])
-}
