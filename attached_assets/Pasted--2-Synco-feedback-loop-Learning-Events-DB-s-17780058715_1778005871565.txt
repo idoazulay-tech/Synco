@@ -1,0 +1,365 @@
+שלב 2ה בפרויקט Synco: הוספת feedback loop בסיסי עם Learning Events ב-DB.
+
+חשוב מאוד:
+אל תשנה את schedulePlanner.
+אל תשנה את buildSchedule.
+אל תשנה את priorityScoreEngine.
+אל תשנה את apply-schedule חוץ מהוספת event logging בטוחה אם צריך.
+אל תשנה את recurringEngine.
+אל תשנה את hebrewDateParser.
+אל תוסיף Auth.
+אל תוסיף Google Calendar.
+אל תוסיף Qdrant flow חדש.
+אל תוסיף AI API.
+אל תבנה מנוע תובנות עדיין.
+אל תעשה refactor רחב.
+אל תחליף קבצים גדולים אם אפשר שינוי קטן.
+אל תשבור Drag & Drop.
+אל תשבור את syncTasksFromServer.
+אל תשבור את localStorage migration.
+
+המטרה:
+להוסיף שכבת Learning Events בסיסית ששומרת ל-PostgreSQL אירועים חשובים של המשתמש, כדי שסינקו יוכל בעתיד ללמוד דפוסים אמיתיים.
+
+האירועים הראשונים שצריך לשמור:
+1. task_created
+2. task_completed
+3. task_rescheduled
+4. task_deleted
+5. schedule_applied
+
+לא צריך עדיין:
+- להסיק תובנות
+- לחבר Qdrant
+- לחבר AI
+- להציג dashboard למידה
+- לשנות את UI בצורה רחבה
+
+לפני שינוי:
+בדוק את הקבצים הבאים:
+
+Backend:
+- prisma/schema.prisma
+- server/routes/learning.ts אם קיים
+- server/routes/user-tasks.ts
+- server/routes/planner.ts
+- server/index.ts
+- server/lib/prisma.ts
+
+Frontend:
+- src/store/taskStore.ts
+- src/lib/api/plannerClient.ts
+- src/components/planner/PlanMyDayButton.tsx
+- src/pages/DayViewPage.tsx
+- src/pages/AddTaskPage.tsx
+- src/pages/EditTaskPage.tsx
+- src/types/task.ts
+
+בדוק במיוחד:
+1. האם כבר קיימת route בשם /api/learning/events.
+2. האם היא שומרת ל-DB או רק InMemory.
+3. האם יש כבר מודל Prisma שמתאים ל-learning events.
+4. האם יש כבר InsightLog, BrainFlag, UserMetrics או טבלה דומה.
+5. אם אין טבלה מתאימה, צור מודל חדש LearningEvent.
+
+גבה כל קובץ שאתה משנה.
+
+החלטה ארכיטקטונית:
+המטרה היא DB-backed learning events.
+לא InMemory.
+
+אם קיימת route /api/learning/events והיא InMemory:
+אל תמחק אותה.
+עדכן אותה או צור route חדש בצורה בטוחה כך שהיא תשמור ל-PostgreSQL.
+
+מודל Prisma מומלץ, רק אם אין קיים מודל מתאים:
+
+model LearningEvent {
+  id              String   @id @default(cuid())
+  userId          String
+  taskId          String?
+  eventType       String
+  source          String?
+  occurredAt      DateTime @default(now())
+  dateIso         String?
+  taskTitleSnapshot String?
+  fromStatus      String?
+  toStatus        String?
+  fromStartTime   DateTime?
+  toStartTime     DateTime?
+  fromEndTime     DateTime?
+  toEndTime       DateTime?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([userId])
+  @@index([taskId])
+  @@index([eventType])
+  @@index([occurredAt])
+}
+
+אם PostgreSQL/Prisma בפרויקט לא מקבל Json בצורה הזאת, התאם לפי המבנה הקיים.
+אל תשבור schema קיים.
+
+Backend:
+צור או עדכן endpoint:
+
+POST /api/learning/events
+
+body:
+{
+  "userId": "default-user",
+  "taskId": "task-id",
+  "eventType": "task_completed",
+  "source": "taskStore",
+  "dateIso": "2026-05-05",
+  "taskTitleSnapshot": "שם המשימה",
+  "fromStatus": "pending",
+  "toStatus": "completed",
+  "fromStartTime": "2026-05-05T07:00:00.000Z",
+  "toStartTime": "2026-05-05T07:00:00.000Z",
+  "metadata": {
+    "duration": 30,
+    "priority": "high"
+  }
+}
+
+Validation:
+1. userId חובה.
+2. eventType חובה.
+3. eventType חייב להיות אחד מ:
+   - task_created
+   - task_completed
+   - task_rescheduled
+   - task_deleted
+   - schedule_applied
+   - task_updated
+4. taskId אופציונלי, כי schedule_applied יכול לכלול כמה משימות.
+5. metadata אופציונלי.
+6. אם חסר userId או eventType, החזר 400.
+7. אם יש שגיאת DB, החזר 500 עם הודעה פשוטה.
+
+Response מוצלח:
+{
+  "ok": true,
+  "event": {
+    "id": "...",
+    "eventType": "task_completed",
+    "taskId": "...",
+    "occurredAt": "..."
+  }
+}
+
+הוסף גם:
+
+GET /api/learning/events?userId=default-user&limit=50
+
+שיחזיר את האירועים האחרונים.
+זה לצורך בדיקה בלבד, לא UI רחב.
+
+Frontend:
+צור helper:
+
+src/lib/api/learningClient.ts
+
+עם פונקציות:
+- logLearningEvent(payload)
+- getLearningEvents(userId, limit)
+
+הלוגינג חייב להיות safe:
+אם שמירת learning event נכשלת, אסור לשבור את פעולת המשתמש.
+לדוגמה:
+אם המשתמש סימן משימה כבוצעה וה-event נכשל, המשימה עדיין צריכה להישאר completed.
+רק להציג console.warn או טיפול שקט.
+
+חיבור לאירועים:
+
+1. task_created
+כאשר משימה חדשה נשמרת בהצלחה ב-DB:
+שמור event:
+eventType: task_created
+source: taskStore או AddTaskPage
+taskId
+taskTitleSnapshot
+toStatus
+
+2. task_completed
+כאשר משתמש מסמן משימה כבוצעה:
+שמור event:
+eventType: task_completed
+fromStatus: pending
+toStatus: completed
+taskId
+taskTitleSnapshot
+metadata:
+  duration
+  priority
+  flexibility
+
+3. task_deleted
+כאשר משתמש מוחק משימה:
+שמור event:
+eventType: task_deleted
+fromStatus
+toStatus: deleted
+
+4. task_rescheduled
+כאשר משתמש משנה זמן של משימה ידנית, כולל Drag & Drop אם יש action קיים:
+שמור event:
+eventType: task_rescheduled
+fromStartTime
+toStartTime
+fromEndTime
+toEndTime
+source: drag_and_drop או edit_task
+
+אם קשה לחבר את Drag & Drop בלי סיכון:
+אל תשבור אותו.
+חבר רק למקום המרכזי שבו taskStore מעדכן startTime/endTime.
+דווח אם Drag & Drop משתמש בנתיב אחר.
+
+5. schedule_applied
+כאשר המשתמש לוחץ "אשר סידור ושמור" וה-apply-schedule הצליח:
+שמור event אחד:
+eventType: schedule_applied
+source: PlanMyDayButton
+metadata:
+  updatedCount
+  taskIds
+  date
+  dayLoadMinutes אם קיים
+  priorityScores אם קיימים
+
+חשוב:
+לא לשמור schedule_applied לפני שה-DB אישר הצלחה.
+
+אם עדיף לוגינג של schedule_applied בצד backend בתוך /api/planner/apply-schedule:
+עשה זאת שם, כי זה אמין יותר.
+אבל אל תיצור כפילות גם backend וגם frontend.
+בחר מקום אחד.
+
+המלצה:
+- task_created/task_completed/task_deleted/task_rescheduled אפשר דרך user-tasks route או taskStore, לפי מה שהכי בטוח.
+- schedule_applied עדיף בתוך backend apply-schedule אחרי transaction מוצלח.
+
+בדיקות חובה:
+1. npm run build
+2. npx prisma db push או הפקודה המתאימה בפרויקט, רק אם שינית schema
+3. GET /api/health
+4. POST /api/learning/events עם task_completed
+5. GET /api/learning/events?userId=default-user
+6. צור משימה ובדוק שנוצר task_created
+7. סמן משימה כבוצעה ובדוק שנוצר task_completed
+8. מחק משימה ובדוק שנוצר task_deleted
+9. שנה זמן משימה ובדוק שנוצר task_rescheduled
+10. לחץ "סדר לי את היום" ובדוק שלא נוצר schedule_applied
+11. לחץ "אשר סידור ושמור" ובדוק שכן נוצר schedule_applied
+12. ודא שאם /api/learning/events נכשל, פעולת המשימה עצמה לא נשברת
+13. ודא ש-/api/planner/schedule עדיין עובד
+14. ודא ש-/api/planner/apply-schedule עדיין עובד
+15. ודא ש-/api/planner/parse עדיין עובד
+16. ודא ש-Drag & Drop לא נשבר
+17. ודא ש-DayView נטען
+18. ודא ש-localStorage migration לא נשברה
+
+בדיקות DB:
+הצג 5 LearningEvents אחרונים עבור default-user.
+ודא שיש בהם:
+- eventType
+- userId
+- taskId אם קיים
+- occurredAt
+- metadata אם קיים
+
+פלט סופי:
+החזר דוח בעברית במבנה הבא:
+
+# דוח שלב 2ה - feedback loop בסיסי
+
+## 1. מה נבדק לפני שינוי
+טבלה:
+קובץ | למה נבדק | מסקנה
+
+## 2. החלטה ארכיטקטונית
+כתוב:
+- האם היה endpoint קיים /api/learning/events
+- האם הוא היה InMemory או DB
+- האם נוצר מודל LearningEvent חדש
+- איפה נשמרים האירועים עכשיו
+
+## 3. מה שונה
+טבלה:
+קובץ | שינוי | למה
+
+## 4. מה גובה
+טבלה:
+קובץ מקורי | קובץ גיבוי
+
+## 5. אילו אירועים נשמרים עכשיו
+טבלה:
+eventType | מתי נוצר | איפה בקוד | נשמר ב-DB כן/לא
+
+## 6. איך הזרימה עובדת עכשיו
+כתוב:
+פעולת משתמש
+→ עדכון משימה
+→ logLearningEvent
+→ PostgreSQL
+→ GET /api/learning/events מציג היסטוריה
+
+## 7. דוגמת LearningEvent אמיתי
+הצג JSON אמיתי אחד מהבדיקה.
+
+## 8. תוצאות build ו-Prisma
+כתוב:
+- build עבר / נכשל
+- db push עבר / לא נדרש / נכשל
+
+## 9. תוצאות API
+טבלה:
+בדיקה | תוצאה | הערה
+
+## 10. תוצאות UI
+טבלה:
+פעולה | תוצאה | הערה
+
+## 11. תוצאות DB
+הצג 5 אירועים אחרונים.
+
+## 12. בדיקות שלא נשברו
+רשום:
+- planner/schedule
+- planner/apply-schedule
+- planner/parse
+- Drag & Drop
+- DayView
+- localStorage migration
+- syncTasksFromServer
+
+## 13. דברים שלא שונו בכוונה
+רשום:
+- לא נוסף Auth
+- לא נוסף Google Calendar
+- לא נוסף Qdrant
+- לא נוסף AI analysis
+- לא נבנה dashboard
+- לא שונה priorityScoreEngine
+- לא שונה schedulePlanner
+
+## 14. סיכונים שנשארו
+רשום:
+- עדיין userId הוא default-user
+- עדיין אין תובנות אוטומטיות
+- עדיין אין למידת זמן ביצוע מלאה
+- עדיין אין timezone מלא לפי משתמש
+- עדיין אין חיבור ל-Qdrant
+- ייתכן שחלק מנתיבי שינוי משימה לא מחוברים אם יש כמה paths לעדכון
+
+## 15. האם שלב 2ה סגור
+כן / לא
+
+## 16. השלב הבא
+השלב הבא צריך להיות:
+שלב 2ו - יצירת Daily Learning Summary בסיסי:
+endpoint שמחשב מתוך LearningEvents של היום:
+כמה משימות נוצרו, כמה הושלמו, כמה נדחו/שונו, באילו שעות המשתמש ביצע הכי הרבה, ואילו משימות זזו הכי הרבה.

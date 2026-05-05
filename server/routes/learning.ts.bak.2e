@@ -2,7 +2,6 @@
 
 import { Router, Request, Response } from 'express';
 import { LearningEngine, getLearningStore } from '../layers/learning/index.js';
-import { prisma } from '../lib/prisma.js';
 
 const router = Router();
 
@@ -171,120 +170,6 @@ router.post('/process', (req: Request, res: Response) => {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
     });
-  }
-});
-
-// ─── DB-backed Learning Events ────────────────────────────────────────────────
-
-const ALLOWED_EVENT_TYPES = new Set([
-  'task_created',
-  'task_completed',
-  'task_rescheduled',
-  'task_deleted',
-  'schedule_applied',
-  'task_updated',
-]);
-
-// POST /api/learning/events — save a learning event to PostgreSQL
-router.post('/events', async (req: Request, res: Response) => {
-  try {
-    const {
-      userId,
-      taskId,
-      eventType,
-      source,
-      dateIso,
-      taskTitleSnapshot,
-      fromStatus,
-      toStatus,
-      fromStartTime,
-      toStartTime,
-      fromEndTime,
-      toEndTime,
-      metadata,
-    } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ ok: false, error: 'userId is required' });
-    }
-    if (!eventType) {
-      return res.status(400).json({ ok: false, error: 'eventType is required' });
-    }
-    if (!ALLOWED_EVENT_TYPES.has(eventType)) {
-      return res.status(400).json({
-        ok: false,
-        error: `eventType must be one of: ${[...ALLOWED_EVENT_TYPES].join(', ')}`,
-      });
-    }
-
-    const event = await prisma.learningEvent.create({
-      data: {
-        userId,
-        taskId:            taskId            ?? null,
-        eventType,
-        source:            source            ?? null,
-        dateIso:           dateIso           ?? null,
-        taskTitleSnapshot: taskTitleSnapshot ?? null,
-        fromStatus:        fromStatus        ?? null,
-        toStatus:          toStatus          ?? null,
-        fromStartTime:     fromStartTime     ? new Date(fromStartTime) : null,
-        toStartTime:       toStartTime       ? new Date(toStartTime)   : null,
-        fromEndTime:       fromEndTime       ? new Date(fromEndTime)   : null,
-        toEndTime:         toEndTime         ? new Date(toEndTime)     : null,
-        metadata:          metadata          ?? null,
-      },
-    });
-
-    res.json({
-      ok: true,
-      event: {
-        id:         event.id,
-        eventType:  event.eventType,
-        taskId:     event.taskId,
-        occurredAt: event.occurredAt.toISOString(),
-      },
-    });
-  } catch (error: any) {
-    console.error('POST /api/learning/events error:', error);
-    res.status(500).json({ ok: false, error: 'Failed to save learning event' });
-  }
-});
-
-// GET /api/learning/events?userId=default-user&limit=50 — for inspection only
-router.get('/events', async (req: Request, res: Response) => {
-  try {
-    const userId = (req.query.userId as string) || 'default-user';
-    const limit  = Math.min(parseInt((req.query.limit as string) || '50', 10), 200);
-
-    const events = await prisma.learningEvent.findMany({
-      where:   { userId },
-      orderBy: { occurredAt: 'desc' },
-      take:    limit,
-    });
-
-    res.json({
-      ok: true,
-      count: events.length,
-      events: events.map(e => ({
-        id:                e.id,
-        eventType:         e.eventType,
-        taskId:            e.taskId,
-        source:            e.source,
-        occurredAt:        e.occurredAt.toISOString(),
-        dateIso:           e.dateIso,
-        taskTitleSnapshot: e.taskTitleSnapshot,
-        fromStatus:        e.fromStatus,
-        toStatus:          e.toStatus,
-        fromStartTime:     e.fromStartTime?.toISOString() ?? null,
-        toStartTime:       e.toStartTime?.toISOString()   ?? null,
-        fromEndTime:       e.fromEndTime?.toISOString()   ?? null,
-        toEndTime:         e.toEndTime?.toISOString()     ?? null,
-        metadata:          e.metadata,
-      })),
-    });
-  } catch (error: any) {
-    console.error('GET /api/learning/events error:', error);
-    res.status(500).json({ ok: false, error: 'Failed to fetch learning events' });
   }
 });
 

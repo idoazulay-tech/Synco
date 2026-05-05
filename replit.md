@@ -87,3 +87,10 @@ An AI-powered learning system with long-term memory and adaptive behavior, divid
 -   **OpenAI**: Used for AI analysis (via Replit AI Integrations for `gpt-4.1-mini`).
 -   **Qdrant**: Vector database for long-term memory (user_events, user_insights, user_profile, synco_knowledge collections).
 -   **PostgreSQL**: Primary database accessed via Prisma.
+
+### Scheduling Core — Stages Completed
+-   **2a** `POST /api/planner/schedule` — buildSchedule, conflict detection, priority scoring.
+-   **2b** PlanMyDayButton — preview modal with expandable priority reasons.
+-   **2c** `POST /api/planner/apply-schedule` — Prisma `$transaction` save + confirm/discard flow.
+-   **2d** `priorityScoreEngine.ts` — `calculatePriorityScore()` + `scoreAndSort()`.
+-   **2e** DB-backed Learning Events — `LearningEvent` Prisma model; `POST /api/learning/events` + `GET /api/learning/events`; fire-and-forget `logLearningEvent()` hooked into `taskStore` (`addTask`→`task_created`, `completeTask`→`task_completed`, `deleteTask`→`task_deleted`, `updateTask` when time changes→`task_rescheduled`); server-side `schedule_applied` auto-log in `planner.ts` after `$transaction`.

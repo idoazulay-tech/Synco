@@ -144,30 +144,6 @@ enum OnboardingStatus {
   SKIPPED_PARTIAL
 }
 
-model LearningEvent {
-  id                String    @id @default(cuid())
-  userId            String
-  taskId            String?
-  eventType         String
-  source            String?
-  occurredAt        DateTime  @default(now())
-  dateIso           String?
-  taskTitleSnapshot String?
-  fromStatus        String?
-  toStatus          String?
-  fromStartTime     DateTime?
-  toStartTime       DateTime?
-  fromEndTime       DateTime?
-  toEndTime         DateTime?
-  metadata          Json?
-  createdAt         DateTime  @default(now())
-
-  @@index([userId])
-  @@index([taskId])
-  @@index([eventType])
-  @@index([occurredAt])
-}
-
 model UserTask {
   id                    String    @id
   userId                String    @default("default-user")

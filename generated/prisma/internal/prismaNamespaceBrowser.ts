@@ -60,6 +60,7 @@ export const ModelName = {
   UserMetrics: 'UserMetrics',
   BrainFlag: 'BrainFlag',
   OnboardingState: 'OnboardingState',
+  LearningEvent: 'LearningEvent',
   UserTask: 'UserTask'
 } as const
 
@@ -202,6 +203,28 @@ export const OnboardingStateScalarFieldEnum = {
 } as const
 
 export type OnboardingStateScalarFieldEnum = (typeof OnboardingStateScalarFieldEnum)[keyof typeof OnboardingStateScalarFieldEnum]
+
+
+export const LearningEventScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  taskId: 'taskId',
+  eventType: 'eventType',
+  source: 'source',
+  occurredAt: 'occurredAt',
+  dateIso: 'dateIso',
+  taskTitleSnapshot: 'taskTitleSnapshot',
+  fromStatus: 'fromStatus',
+  toStatus: 'toStatus',
+  fromStartTime: 'fromStartTime',
+  toStartTime: 'toStartTime',
+  fromEndTime: 'fromEndTime',
+  toEndTime: 'toEndTime',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type LearningEventScalarFieldEnum = (typeof LearningEventScalarFieldEnum)[keyof typeof LearningEventScalarFieldEnum]
 
 
 export const UserTaskScalarFieldEnum = {

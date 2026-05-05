@@ -241,23 +241,6 @@ router.post('/apply-schedule', async (req: Request, res: Response) => {
       )
     );
 
-    // ── Log schedule_applied event (fire-and-forget, never breaks response) ──
-    prisma.learningEvent.create({
-      data: {
-        userId,
-        eventType: 'schedule_applied',
-        source:    'planner/apply-schedule',
-        dateIso:   date,
-        metadata:  {
-          updatedCount: updatedRecords.length,
-          taskIds: updatedRecords.map(r => r.id),
-          date,
-        },
-      },
-    }).catch((err: any) => {
-      console.warn('[planner] schedule_applied event log failed (silent):', err?.message);
-    });
-
     res.json({
       ok: true,
       date,

@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware';
 import { Task, StandbyTask, HistoryEntry, Tag, DEFAULT_TAGS, TaskTemplate, TemplateCategory } from '@/types/task';
 import { addHours, addMinutes, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { expandRecurring, getMasterTaskId } from '@/lib/recurringEngine';
-import { logLearningEvent } from '@/lib/api/learningClient';
 
 const USER_ID = 'default-user';
 
@@ -132,34 +131,16 @@ export const useTaskStore = create<TaskState>()(
         // fire-and-forget — UI is already updated above
         apiPost(newTask);
 
-        // learning event — fire-and-forget, never breaks addTask
-        logLearningEvent({
-          userId: USER_ID,
-          taskId: newTask.id,
-          eventType: 'task_created',
-          source: 'taskStore',
-          dateIso: newTask.startTime.toISOString().split('T')[0],
-          taskTitleSnapshot: newTask.title,
-          toStatus: newTask.status,
-          metadata: {
-            duration: newTask.duration,
-            priority: newTask.priority ?? null,
-            flexibility: newTask.flexibility ?? null,
-          },
-        });
-
         return newTask;
       },
 
       updateTask: (id, updates) => {
         const resolvedId = id.includes('_occ_') ? getMasterTaskId(id) : id;
         let updatedTask: Task | undefined;
-        let previousTask: Task | undefined;
 
         set((state) => {
           const mapped = state.tasks.map((task) => {
             if (task.id !== resolvedId) return task;
-            previousTask = task;
             const t = {
               ...task,
               ...updates,
@@ -183,55 +164,15 @@ export const useTaskStore = create<TaskState>()(
 
         if (updatedTask) {
           apiPut(resolvedId, updatedTask);
-
-          // learning event for time reschedule (Drag & Drop or manual edit)
-          if (previousTask && (updates.startTime || updates.endTime)) {
-            logLearningEvent({
-              userId: USER_ID,
-              taskId: resolvedId,
-              eventType: 'task_rescheduled',
-              source: 'taskStore/updateTask',
-              taskTitleSnapshot: previousTask.title,
-              fromStartTime: previousTask.startTime.toISOString(),
-              fromEndTime:   previousTask.endTime.toISOString(),
-              toStartTime:   (updates.startTime ?? previousTask.startTime).toISOString(),
-              toEndTime:     (updates.endTime   ?? previousTask.endTime).toISOString(),
-              metadata: {
-                duration:    updatedTask.duration,
-                priority:    updatedTask.priority ?? null,
-                flexibility: updatedTask.flexibility ?? null,
-              },
-            });
-          }
         }
       },
 
       deleteTask: (id) => {
         const resolvedId = id.includes('_occ_') ? getMasterTaskId(id) : id;
-        const task = get().tasks.find((t) => t.id === resolvedId);
-
         set((state) => ({
           tasks: state.tasks.filter((task) => task.id !== resolvedId),
         }));
         apiDelete(resolvedId);
-
-        // learning event — fire-and-forget
-        if (task) {
-          logLearningEvent({
-            userId: USER_ID,
-            taskId: resolvedId,
-            eventType: 'task_deleted',
-            source: 'taskStore',
-            taskTitleSnapshot: task.title,
-            fromStatus: task.status,
-            toStatus: 'deleted',
-            metadata: {
-              duration:    task.duration,
-              priority:    task.priority ?? null,
-              flexibility: task.flexibility ?? null,
-            },
-          });
-        }
       },
 
       completeTask: (id, completed) => {
@@ -261,24 +202,6 @@ export const useTaskStore = create<TaskState>()(
         }));
 
         apiComplete(resolvedId, completed, updatedTask.history);
-
-        // learning event — fire-and-forget
-        if (completed) {
-          logLearningEvent({
-            userId: USER_ID,
-            taskId: resolvedId,
-            eventType: 'task_completed',
-            source: 'taskStore',
-            taskTitleSnapshot: task.title,
-            fromStatus: task.status,
-            toStatus: 'completed',
-            metadata: {
-              duration:    task.duration,
-              priority:    task.priority ?? null,
-              flexibility: task.flexibility ?? null,
-            },
-          });
-        }
       },
 
       moveToStandby: (id, notes) => {

@@ -393,6 +393,7 @@ export const ModelName = {
   UserMetrics: 'UserMetrics',
   BrainFlag: 'BrainFlag',
   OnboardingState: 'OnboardingState',
+  LearningEvent: 'LearningEvent',
   UserTask: 'UserTask'
 } as const
 
@@ -409,7 +410,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "taskFile" | "taskRun" | "runStep" | "insightLog" | "userSettings" | "regulationLog" | "userMetrics" | "brainFlag" | "onboardingState" | "userTask"
+    modelProps: "taskFile" | "taskRun" | "runStep" | "insightLog" | "userSettings" | "regulationLog" | "userMetrics" | "brainFlag" | "onboardingState" | "learningEvent" | "userTask"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1079,6 +1080,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    LearningEvent: {
+      payload: Prisma.$LearningEventPayload<ExtArgs>
+      fields: Prisma.LearningEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.LearningEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LearningEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.LearningEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LearningEventPayload>
+        }
+        findFirst: {
+          args: Prisma.LearningEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LearningEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.LearningEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LearningEventPayload>
+        }
+        findMany: {
+          args: Prisma.LearningEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LearningEventPayload>[]
+        }
+        create: {
+          args: Prisma.LearningEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LearningEventPayload>
+        }
+        createMany: {
+          args: Prisma.LearningEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.LearningEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LearningEventPayload>[]
+        }
+        delete: {
+          args: Prisma.LearningEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LearningEventPayload>
+        }
+        update: {
+          args: Prisma.LearningEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LearningEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.LearningEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.LearningEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.LearningEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LearningEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.LearningEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$LearningEventPayload>
+        }
+        aggregate: {
+          args: Prisma.LearningEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateLearningEvent>
+        }
+        groupBy: {
+          args: Prisma.LearningEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LearningEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.LearningEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.LearningEventCountAggregateOutputType> | number
+        }
+      }
+    }
     UserTask: {
       payload: Prisma.$UserTaskPayload<ExtArgs>
       fields: Prisma.UserTaskFieldRefs
@@ -1315,6 +1390,28 @@ export const OnboardingStateScalarFieldEnum = {
 } as const
 
 export type OnboardingStateScalarFieldEnum = (typeof OnboardingStateScalarFieldEnum)[keyof typeof OnboardingStateScalarFieldEnum]
+
+
+export const LearningEventScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  taskId: 'taskId',
+  eventType: 'eventType',
+  source: 'source',
+  occurredAt: 'occurredAt',
+  dateIso: 'dateIso',
+  taskTitleSnapshot: 'taskTitleSnapshot',
+  fromStatus: 'fromStatus',
+  toStatus: 'toStatus',
+  fromStartTime: 'fromStartTime',
+  toStartTime: 'toStartTime',
+  fromEndTime: 'fromEndTime',
+  toEndTime: 'toEndTime',
+  metadata: 'metadata',
+  createdAt: 'createdAt'
+} as const
+
+export type LearningEventScalarFieldEnum = (typeof LearningEventScalarFieldEnum)[keyof typeof LearningEventScalarFieldEnum]
 
 
 export const UserTaskScalarFieldEnum = {
@@ -1652,6 +1749,7 @@ export type GlobalOmitConfig = {
   userMetrics?: Prisma.UserMetricsOmit
   brainFlag?: Prisma.BrainFlagOmit
   onboardingState?: Prisma.OnboardingStateOmit
+  learningEvent?: Prisma.LearningEventOmit
   userTask?: Prisma.UserTaskOmit
 }
 
