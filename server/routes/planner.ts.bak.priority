@@ -4,7 +4,6 @@ import { prisma } from '../lib/prisma.js';
 import { buildSchedule } from '../layers/task/planners/schedulePlanner.js';
 import { adaptUserTasksToScheduleTasks } from '../layers/task/adapters/userTaskToScheduleAdapter.js';
 import type { ScheduleConfig } from '../layers/task/types/scheduleTypes.js';
-import { scoreAndSort } from '../layers/task/priority/priorityScoreEngine.js';
 
 const router = Router();
 
@@ -97,19 +96,7 @@ router.post('/schedule', async (req: Request, res: Response) => {
       });
     }
 
-    // ── Priority scoring: score + sort rawTasks before adapter ────────────────
-    const scored = scoreAndSort(rawTasks, { referenceDate: dateIso });
-
-    // Build a lookup map: taskId → score data
-    const scoreMap = new Map(
-      scored.map(s => [
-        s.task.id as string,
-        { score: s.priorityScore, level: s.priorityLevel, reasons: s.priorityReasons },
-      ])
-    );
-
-    // Pass sorted raw tasks to adapter (preserves fixed-first + score order)
-    const scheduleTasks = adaptUserTasksToScheduleTasks(scored.map(s => s.task));
+    const scheduleTasks = adaptUserTasksToScheduleTasks(rawTasks);
 
     const config: ScheduleConfig = {
       dayStartHour: isNaN(startHour) ? 8  : startHour,
@@ -124,7 +111,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
       .filter(b => b.type === 'task' && b.refId)
       .map(b => {
         const task = scheduleTasks.find(t => t.id === b.refId);
-        const ps = scoreMap.get(b.refId!) ?? { score: 0, level: 'low', reasons: [] };
         return {
           id: b.refId!,
           title: b.title,
@@ -132,9 +118,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
           endTime:   b.endTimeIso.substring(11, 16),
           durationMinutes: task?.durationMinutes ?? 0,
           priority: task?.urgency ?? 'medium',
-          priorityScore:   ps.score,
-          priorityLevel:   ps.level,
-          priorityReasons: ps.reasons,
           reason: 'שובץ בזמן פנוי מתאים',
           confidence: 0.8,
         };

@@ -1,0 +1,330 @@
+שלב 2ד בפרויקט Synco: הוספת priorityScore בסיסי לפני השיבוץ.
+
+חשוב מאוד:
+אל תשנה את schedulePlanner בצורה עמוקה.
+אל תשנה את buildSchedule.
+אל תשנה את apply-schedule.
+אל תשנה את preview flow.
+אל תשנה את שמירת ה-DB.
+אל תשנה recurringEngine.
+אל תשנה hebrewDateParser.
+אל תוסיף Auth.
+אל תוסיף Google Calendar.
+אל תוסיף Qdrant flow חדש.
+אל תשתמש ב-AI API בשלב הזה.
+אל תעשה refactor רחב.
+אל תחליף קבצים גדולים אם אפשר להוסיף קובץ קטן ומבודד.
+
+המטרה:
+לפני שהמשימות נשלחות ל-buildSchedule, להוסיף להן priorityScore בסיסי והסבר priorityReasons, כדי שסינקו ישבץ קודם את מה שבאמת חשוב ולא רק לפי הסדר שבו המשימות הגיעו.
+
+המצב הקיים:
+שלב 2א:
+POST /api/planner/schedule מחזיר הצעת שיבוץ.
+
+שלב 2ב:
+ה-frontend מציג כפתור "סדר לי את היום" ו-Preview.
+
+שלב 2ג:
+נוסף POST /api/planner/apply-schedule, ששומר את השיבוץ ב-DB רק אחרי אישור משתמש.
+
+עכשיו צריך:
+1. ליצור מנוע priorityScore בסיסי.
+2. לשלב אותו ב-/api/planner/schedule לפני buildSchedule.
+3. להחזיר את הציון והסיבות ל-frontend.
+4. להציג ב-Preview למה סינקו שם משימה במקום מסוים.
+
+לפני שינוי:
+בדוק את הקבצים:
+- server/routes/planner.ts
+- server/layers/task/adapters/userTaskToScheduleAdapter.ts
+- server/layers/task/planners/schedulePlanner.ts
+- prisma/schema.prisma
+- src/components/planner/PlanMyDayButton.tsx
+- src/lib/api/plannerClient.ts
+- src/types/task.ts
+
+גבה כל קובץ שאתה משנה.
+
+החלטה ארכיטקטונית:
+צור קובץ חדש:
+
+server/layers/task/priority/priorityScoreEngine.ts
+
+אל תכניס את כל הלוגיקה לתוך planner.ts.
+
+המנוע צריך לייצא פונקציה:
+
+calculatePriorityScore(task, context)
+
+הפונקציה תחזיר:
+
+{
+  score: number,
+  level: "low" | "medium" | "high" | "critical",
+  reasons: string[]
+}
+
+טווח score:
+0 עד 100.
+
+חוקי ניקוד בסיסיים:
+
+1. דדליין או שעת התחלה קרובה
+אם יש startTime או scheduled start:
+- עבר הזמן או מתחיל בשעה הקרובה: +35
+- היום: +25
+- מחר: +15
+- בלי זמן ברור: +5
+
+2. עדיפות משתמש
+לפי priority:
+- high: +30
+- medium: +18
+- low: +8
+- חסר: +10
+
+3. גמישות
+לפי flexibility:
+- fixed: +20
+- flexible: +8
+- חסר: +8
+
+4. משך
+לפי duration:
+- עד 15 דקות: +10
+- עד 30 דקות: +8
+- עד 60 דקות: +5
+- מעל 60 דקות: +2
+
+5. סטטוס
+- pending בלבד מקבל score.
+- completed/deleted לא אמורים להגיע לשיבוץ.
+- אם בכל זאת מגיעים, score 0 וסיבה "משימה לא פעילה".
+
+6. מקום לשדות עתידיים
+אם קיימים בשדות task:
+- postponeCount
+- importance
+- urgency
+- deadline
+- emotionalLoad
+- energyRequired
+
+השתמש בהם רק אם הם באמת קיימים.
+אל תמציא שדות שלא קיימים.
+אם הם לא קיימים, כתוב בקוד comment ברור שהם שמורים לשלב עתידי.
+
+level:
+- 85 עד 100: critical
+- 65 עד 84: high
+- 35 עד 64: medium
+- 0 עד 34: low
+
+reasons:
+החזר סיבות בעברית פשוטה, למשל:
+- "המשימה מוגדרת בעדיפות גבוהה"
+- "המשימה קשיחה בזמן"
+- "משך המשימה קצר ולכן קל לשבץ אותה"
+- "המשימה רלוונטית להיום"
+
+שילוב ב-server/routes/planner.ts:
+ב-endpoint:
+POST /api/planner/schedule
+
+אחרי adapter ולפני buildSchedule:
+1. חשב priorityScore לכל משימה.
+2. הוסף לכל task שדות פנימיים:
+   - priorityScore
+   - priorityLevel
+   - priorityReasons
+3. מיין את המשימות לפני buildSchedule:
+   - fixed/mustLock קודם
+   - אחר כך score גבוה לנמוך
+   - אם score שווה, duration קצר קודם
+
+חשוב:
+אל תשבור את טיפוס Task הקיים.
+אם TypeScript מתנגד להוספת שדות, צור type פנימי חדש:
+PrioritizedScheduleTask extends Task
+
+או השתמש במבנה wrapper:
+{
+  task,
+  priorityScore,
+  priorityLevel,
+  priorityReasons
+}
+
+ואז החזר את השדות ב-response.
+
+Response:
+ב-scheduledTasks הוסף:
+priorityScore
+priorityLevel
+priorityReasons
+
+דוגמה:
+{
+  "id": "task-1",
+  "title": "לשלם חשבון",
+  "startTime": "09:00",
+  "endTime": "09:20",
+  "durationMinutes": 20,
+  "priority": "high",
+  "priorityScore": 88,
+  "priorityLevel": "critical",
+  "priorityReasons": [
+    "המשימה מוגדרת בעדיפות גבוהה",
+    "משך המשימה קצר ולכן קל לשבץ אותה",
+    "המשימה רלוונטית להיום"
+  ],
+  "reason": "שובץ בזמן פנוי מתאים",
+  "confidence": 0.8
+}
+
+Frontend:
+עדכן את:
+src/lib/api/plannerClient.ts
+
+כך שהטיפוסים כוללים:
+- priorityScore
+- priorityLevel
+- priorityReasons
+
+עדכן את:
+src/components/planner/PlanMyDayButton.tsx
+
+ב-Preview:
+ליד כל משימה הצג:
+- ציון: priorityScore
+- רמה: priorityLevel
+- סיבות: priorityReasons
+
+הצגה פשוטה:
+"ציון חשיבות: 88"
+"למה סינקו שם את זה כאן:"
+- סיבה 1
+- סיבה 2
+- סיבה 3
+
+חשוב:
+אל תשנה את עיצוב ה-Dialog בצורה רחבה.
+רק הוסף מידע מתחת לכל משימה.
+
+בדיקות חובה:
+1. npm run build
+2. GET /api/health
+3. POST /api/planner/schedule עם 3 משימות:
+   - high + fixed + קצרה
+   - medium + flexible + בינונית
+   - low + flexible + ארוכה
+4. ודא שהמשימה עם score הכי גבוה מופיעה מוקדם יותר אם אין אילוץ אחר.
+5. ודא ש-fixed לא נשבר.
+6. ודא ש-completed/deleted עדיין מסוננות.
+7. ודא שה-response כולל priorityScore, priorityLevel, priorityReasons.
+8. ודא שה-Preview מציג את הסיבות.
+9. ודא ש-apply-schedule עדיין עובד.
+10. ודא ש-/api/planner/parse עדיין עובד.
+11. ודא ש-Drag & Drop לא נשבר.
+12. ודא שאין כתיבה ל-DB בשלב preview.
+13. ודא שרק "אשר סידור ושמור" כותב ל-DB.
+
+בדיקות edge cases:
+- משימה בלי priority
+- משימה בלי duration
+- משימה עם duration גדול מאוד
+- משימה fixed
+- משימה עם startTime קיים
+- רשימת משימות ריקה
+- taskId לא קיים ב-apply-schedule עדיין מתנהג כמו קודם
+
+פלט סופי:
+החזר דוח בעברית במבנה הבא:
+
+# דוח שלב 2ד - priorityScore בסיסי
+
+## 1. מה נבדק לפני שינוי
+טבלה:
+קובץ | למה נבדק | מסקנה
+
+## 2. החלטה ארכיטקטונית
+כתוב איפה נבנה priorityScoreEngine ולמה הוא מבודד.
+
+## 3. מה שונה
+טבלה:
+קובץ | שינוי | למה
+
+## 4. מה גובה
+טבלה:
+קובץ מקורי | קובץ גיבוי
+
+## 5. איך priorityScore מחושב
+הסבר את הנוסחה בפשטות:
+דדליין/זמן
+עדיפות משתמש
+גמישות
+משך
+סטטוס
+
+## 6. איך זה משתלב בשיבוץ
+כתוב:
+tasks
+→ adapter
+→ priorityScore
+→ sorting
+→ buildSchedule
+→ response עם הסברים
+
+## 7. דוגמת response אמיתי
+הצג דוגמה של scheduledTask אחד עם:
+priorityScore
+priorityLevel
+priorityReasons
+
+## 8. תוצאות build
+עבר / נכשל
+
+## 9. תוצאות API
+טבלה:
+בדיקה | תוצאה | הערה
+
+## 10. תוצאות UI
+טבלה:
+פעולה | תוצאה | הערה
+
+## 11. בדיקות שלא נשברו
+רשום:
+- apply-schedule
+- Preview
+- Drag & Drop
+- /api/planner/parse
+- /api/health
+- localStorage migration
+- DayView loading
+
+## 12. דברים שלא שונו בכוונה
+רשום:
+- לא נוסף Auth
+- לא נוסף Google Calendar
+- לא נוסף AI API לתעדוף
+- לא שונה schedulePlanner עמוק
+- לא שונה recurringEngine
+- לא שונה Qdrant
+
+## 13. סיכונים שנשארו
+רשום:
+- עדיין אין Auth
+- עדיין אין Google Calendar
+- עדיין אין למידת דחיות אמיתית
+- עדיין אין התאמה לפי אנרגיה
+- עדיין אין timezone מלא לפי משתמש
+- priorityScore בסיסי בלבד, לא מנוע חכם מלא
+
+## 14. האם שלב 2ד סגור
+כן / לא
+
+## 15. השלב הבא
+השלב הבא צריך להיות:
+שלב 2ה - הוספת feedback loop בסיסי:
+כאשר משתמש מסמן משימה כבוצעה, דחה אותה, או משנה זמן, נשמר אירוע למידה ראשון שמאפשר לסינקו להתחיל ללמוד דפוסים.

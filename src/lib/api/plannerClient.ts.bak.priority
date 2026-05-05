@@ -1,7 +1,5 @@
 import { Task } from '@/types/task';
 
-export type PriorityLevel = 'low' | 'medium' | 'high' | 'critical';
-
 export interface ScheduledTaskPreview {
   id: string;
   title: string;
@@ -9,9 +7,6 @@ export interface ScheduledTaskPreview {
   endTime: string;
   durationMinutes: number;
   priority: string;
-  priorityScore: number;
-  priorityLevel: PriorityLevel;
-  priorityReasons: string[];
   reason: string;
   confidence: number;
 }
