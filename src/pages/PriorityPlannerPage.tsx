@@ -97,12 +97,11 @@ export default function PriorityPlannerPage() {
   const [isListening, setIsListening] = useState(false);
   const [voiceEditingId, setVoiceEditingId] = useState<string | null>(null);
   const [liveTranscript, setLiveTranscript] = useState('');
+  const [liveInterim, setLiveInterim] = useState('');
 
   const recognitionRef = useRef<any>(null);
 
-  // Saves the inputText content that was present BEFORE the current recording session started
-  const sessionStartTextRef = useRef('');
-  // Accumulates the final (confirmed) transcript for the current session
+  // Accumulates the final (confirmed) transcript for the current recognition session
   const sessionFinalRef = useRef('');
   // For edit mode: always holds the latest transcript regardless of React render cycle
   const editTranscriptRef = useRef('');
@@ -134,20 +133,19 @@ export default function PriorityPlannerPage() {
       try { recognitionRef.current.abort(); } catch {}
     }
 
-    // Capture current text before we start this session
-    sessionStartTextRef.current = forEditId ? '' : inputText;
     sessionFinalRef.current = '';
     editTranscriptRef.current = '';
     setLiveTranscript('');
+    setLiveInterim('');
 
     const recognition = new SpeechRecognition();
     recognition.lang = 'he-IL';
-    recognition.continuous = true;      // Keep listening until user presses stop
+    recognition.continuous = false;     // Reliable on all browsers, including Android Chrome
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (e: any) => {
-      // Rebuild the full transcript from ALL results accumulated in this session
+      // Build transcript from current session results only — never write to textarea here
       let finalText = '';
       let interimText = '';
       for (let i = 0; i < e.results.length; i++) {
@@ -161,16 +159,11 @@ export default function PriorityPlannerPage() {
       sessionFinalRef.current = finalText;
       editTranscriptRef.current = finalText + interimText;
 
-      const displayText = finalText + interimText;
-
       if (forEditId) {
-        // In edit mode, just show what we're hearing live
-        setLiveTranscript(displayText);
+        setLiveTranscript(finalText + interimText);
       } else {
-        // In main input mode, prepend whatever was in the box before recording
-        const prefix = sessionStartTextRef.current.trim();
-        const combined = prefix ? prefix + ' ' + displayText : displayText;
-        setInputText(combined);
+        // Show live display below textarea — never touch inputText here
+        setLiveInterim(finalText + interimText);
       }
     };
 
@@ -184,14 +177,25 @@ export default function PriorityPlannerPage() {
         setVoiceEditingId(null);
         setLiveTranscript('');
         editTranscriptRef.current = '';
+      } else {
+        // Append final transcript to whatever is already in the textarea — no duplication
+        const addition = sessionFinalRef.current.trim();
+        if (addition) {
+          setInputText(prev => {
+            const prefix = prev.trim();
+            return prefix ? prefix + ' ' + addition : addition;
+          });
+        }
+        setLiveInterim('');
+        sessionFinalRef.current = '';
       }
     };
 
     recognition.onerror = (e: any) => {
-      // 'no-speech' is expected when user pauses — not a real error in continuous mode
       if (e.error !== 'no-speech') {
         setIsListening(false);
         setVoiceEditingId(null);
+        setLiveInterim('');
         toast({ title: 'שגיאה בהקלטה', variant: 'destructive' });
       }
     };
@@ -200,7 +204,7 @@ export default function PriorityPlannerPage() {
     recognition.start();
     setIsListening(true);
     if (forEditId) setVoiceEditingId(forEditId);
-  }, [inputText, toast]);
+  }, [toast]);
 
   const applyVoiceEdit = async (taskId: string, voiceText: string) => {
     try {
@@ -438,10 +442,22 @@ export default function PriorityPlannerPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="flex items-center gap-2 text-sm text-red-500"
+                  className="space-y-1"
                 >
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                  <span>מקשיב... לחץ על המיקרופון לעצירה</span>
+                  <div className="flex items-center gap-2 text-sm text-red-500">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                    <span>מקשיב... לחץ על המיקרופון לעצירה</span>
+                  </div>
+                  {liveInterim && (
+                    <motion.p
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-sm text-primary italic px-1"
+                      dir="rtl"
+                    >
+                      {liveInterim}
+                    </motion.p>
+                  )}
                 </motion.div>
               )}
 
