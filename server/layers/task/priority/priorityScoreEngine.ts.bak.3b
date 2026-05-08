@@ -1,10 +1,7 @@
-// ─── Priority Score Engine — Synco שלב 2ד + 3ב ───────────────────────────────
+// ─── Priority Score Engine — Synco שלב 2ד ────────────────────────────────────
 // מחשב priorityScore (0-100) לכל משימה גולמית לפני שיבוץ.
 // מבודד לחלוטין: לא נוגע ב-schedulePlanner, buildSchedule, adapter, DB.
-// שלב 3ב: תומך ב-learningContext אופציונלי (backward-compatible).
 // ─────────────────────────────────────────────────────────────────────────────
-
-import type { MovedTaskHint, PlanningLearningContext } from '../.././../../services/planningLearningContextService.js';
 
 export type PriorityLevel = 'low' | 'medium' | 'high' | 'critical';
 
@@ -12,15 +9,11 @@ export interface PriorityScoreResult {
   score: number;          // 0–100
   level: PriorityLevel;
   reasons: string[];
-  learningBoost: number;
-  learningReasons: string[];
 }
 
 export interface PriorityContext {
   /** תאריך יחס לצורך חישוב קרבת זמן (YYYY-MM-DD) */
   referenceDate: string;
-  /** הקשר למידה — אופציונלי, אם חסר המנוע עובד כמו קודם */
-  learningContext?: PlanningLearningContext | null;
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -38,47 +31,12 @@ function toLevel(score: number): PriorityLevel {
   return 'low';
 }
 
-// ─── learning boost helper ────────────────────────────────────────────────────
-
-function applyLearningBoost(
-  task: Record<string, any>,
-  hints: MovedTaskHint[]
-): { boost: number; reasons: string[] } {
-  if (!hints.length) return { boost: 0, reasons: [] };
-
-  const taskId    = task.id    as string | undefined;
-  const taskTitle = task.title as string | undefined;
-
-  // 1. exact taskId match
-  const byId = taskId ? hints.find(h => h.taskId && h.taskId === taskId) : undefined;
-  if (byId) {
-    return {
-      boost:   Math.min(byId.suggestedBoost, 10),
-      reasons: [`${byId.reason} (${byId.rescheduleCount} פעמים)`],
-    };
-  }
-
-  // 2. title match (reduced boost, max 4)
-  const byTitle = taskTitle
-    ? hints.find(h => h.title && h.title === taskTitle)
-    : undefined;
-  if (byTitle) {
-    const reducedBoost = Math.min(byTitle.suggestedBoost, 4);
-    return {
-      boost:   reducedBoost,
-      reasons: [`${byTitle.reason} (${byTitle.rescheduleCount} פעמים)`],
-    };
-  }
-
-  return { boost: 0, reasons: [] };
-}
-
 // ─── main export ──────────────────────────────────────────────────────────────
 
 /**
  * מחשב ציון עדיפות לכל משימה גולמית (raw record מ-DB / body).
  * @param task   — הרשומה הגולמית (לא טיפוס Task הפנימי)
- * @param ctx    — הקשר: תאריך הייחוס לשיבוץ + learningContext אופציונלי
+ * @param ctx    — הקשר: תאריך הייחוס לשיבוץ
  */
 export function calculatePriorityScore(
   task: Record<string, any>,
@@ -90,7 +48,7 @@ export function calculatePriorityScore(
   // ── 0. סטטוס לא פעיל ─────────────────────────────────────────────────────
   const status = (task.status ?? '').toLowerCase();
   if (['completed', 'deleted', 'done', 'canceled'].includes(status) || task.deletedAt) {
-    return { score: 0, level: 'low', reasons: ['משימה לא פעילה — לא נכנסת לשיבוץ'], learningBoost: 0, learningReasons: [] };
+    return { score: 0, level: 'low', reasons: ['משימה לא פעילה — לא נכנסת לשיבוץ'] };
   }
 
   // ── 1. קרבת זמן / דדליין ─────────────────────────────────────────────────
@@ -103,6 +61,7 @@ export function calculatePriorityScore(
     const diff = dayDiff(startIso.split('T')[0], ctx.referenceDate);
 
     if (diff <= 0) {
+      // עבר הזמן, או מתחיל היום ממש
       score += 35;
       reasons.push('המשימה מתחילה היום או עבר מועדה');
     } else if (diff === 1) {
@@ -132,7 +91,7 @@ export function calculatePriorityScore(
     score += 8;
     reasons.push('המשימה מוגדרת בעדיפות נמוכה');
   } else {
-    score += 10;
+    score += 10; // לא הוגדר — ברירת מחדל בינונית
     reasons.push('עדיפות לא הוגדרה — ברירת מחדל');
   }
 
@@ -163,31 +122,15 @@ export function calculatePriorityScore(
     reasons.push('משך המשימה ארוך — דורשת חלון זמן גדול');
   }
 
-  // ── 5. Learning boost (שלב 3ב) ───────────────────────────────────────────
-  const hints = ctx.learningContext?.movedTaskHints ?? [];
-  const { boost, reasons: lReasons } = applyLearningBoost(task, hints);
-
-  if (boost > 0) {
-    reasons.push('המשימה הזו זזה בעבר כמה פעמים ולכן כדאי לתת לה מקום ברור');
-  }
-
-  // ── 6. שדות עתידיים ───────────────────────────────────────────────────────
+  // ── 5. שדות עתידיים (שמורים לשלבים הבאים) ───────────────────────────────
   // TODO שלב עתידי: postponeCount — משימות שנדחו יקבלו bonus
   // TODO שלב עתידי: importance / urgency (Eisenhower matrix)
   // TODO שלב עתידי: deadline נפרד מ-startTime
   // TODO שלב עתידי: emotionalLoad, energyRequired
   // TODO שלב עתידי: context awareness (בוקר / צהריים / ערב)
 
-  const baseScore = Math.min(100, Math.max(0, score));
-  const final     = Math.min(100, baseScore + boost);
-
-  return {
-    score:           final,
-    level:           toLevel(final),
-    reasons,
-    learningBoost:   boost,
-    learningReasons: lReasons,
-  };
+  const final = Math.min(100, Math.max(0, score));
+  return { score: final, level: toLevel(final), reasons };
 }
 
 // ─── bulk helper ──────────────────────────────────────────────────────────────
@@ -197,8 +140,6 @@ export interface ScoredTask {
   priorityScore: number;
   priorityLevel: PriorityLevel;
   priorityReasons: string[];
-  learningBoost: number;
-  learningReasons: string[];
 }
 
 /**
@@ -215,11 +156,9 @@ export function scoreAndSort(
     const result = calculatePriorityScore(task, ctx);
     return {
       task,
-      priorityScore:   result.score,
-      priorityLevel:   result.level,
+      priorityScore: result.score,
+      priorityLevel: result.level,
       priorityReasons: result.reasons,
-      learningBoost:   result.learningBoost,
-      learningReasons: result.learningReasons,
     };
   });
 

@@ -12,17 +12,8 @@ export interface ScheduledTaskPreview {
   priorityScore: number;
   priorityLevel: PriorityLevel;
   priorityReasons: string[];
-  learningBoost: number;
-  learningReasons: string[];
   reason: string;
   confidence: number;
-}
-
-export interface LearningContextSummary {
-  enabled: boolean;
-  lookbackDays: number;
-  topCompletionHours: { hour: number; count: number }[];
-  warnings: string[];
 }
 
 export interface UnscheduledTaskPreview {
@@ -46,7 +37,6 @@ export interface SchedulePreviewResponse {
   unscheduledTasks: UnscheduledTaskPreview[];
   warnings: string[];
   summary: SchedulePreviewSummary;
-  learningContextSummary?: LearningContextSummary | null;
 }
 
 export interface ApplyScheduleResponse {

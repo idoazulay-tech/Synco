@@ -1,0 +1,341 @@
+שלב 3ב בפרויקט Synco: שימוש ב-Daily Learning Summary ובהיסטוריית Learning Events כהקשר עדין לשיפור priorityScore והשיבוץ.
+
+חשוב מאוד:
+אל תשנה את schedulePlanner בצורה עמוקה.
+אל תשנה את buildSchedule.
+אל תשבור את priorityScoreEngine.
+אל תשנה את apply-schedule.
+אל תשנה את Learning Events הקיימים בצורה שוברת.
+אל תשנה את Daily Learning Summary הקיים חוץ מקריאה אליו אם צריך.
+אל תוסיף Auth.
+אל תוסיף Google Calendar.
+אל תוסיף Qdrant.
+אל תוסיף AI API.
+אל תבנה dashboard.
+אל תשנה UI רחב.
+אל תעשה refactor רחב.
+אל תכתוב ל-DB בשלב הזה.
+אל תיצור למידה אוטומטית מסוכנת.
+כל השלב הזה צריך להיות read-only מצד הלמידה: קוראים היסטוריה, משתמשים בה כ-context, ולא משנים אותה.
+
+המטרה:
+כאשר המשתמש לוחץ "סדר לי את היום", ה-endpoint:
+POST /api/planner/schedule
+
+ישתמש בהיסטוריית Learning Events כדי להוסיף הקשר תעדוף עדין:
+- משימות שזזו הרבה בעבר יקבלו תוספת ציון קטנה.
+- אם יש הרבה שינויי זמן ביום, תוחזר אזהרה.
+- אם יש שעות שבהן המשתמש משלים יותר משימות, יוחזרו planning hints.
+- כל תוספת תוצג למשתמש כסיבה ברורה ב-Preview.
+
+לפני שינוי:
+בדוק את הקבצים:
+- server/routes/planner.ts
+- server/layers/task/priority/priorityScoreEngine.ts
+- server/services/learningSummaryService.ts
+- server/routes/learning.ts
+- prisma/schema.prisma
+- src/lib/api/plannerClient.ts
+- src/components/planner/PlanMyDayButton.tsx
+
+גבה כל קובץ שאתה משנה.
+
+החלטה ארכיטקטונית:
+צור שירות חדש מבודד:
+
+server/services/planningLearningContextService.ts
+
+השירות ייצא פונקציה:
+
+buildPlanningLearningContext(userId: string, dateIso: string, tasks: any[])
+
+הפונקציה תחזיר:
+
+{
+  "enabled": true,
+  "lookbackDays": 7,
+  "timezoneMode": "utc",
+  "totalEvents": 12,
+  "topCompletionHours": [
+    { "hour": 9, "count": 3 },
+    { "hour": 14, "count": 2 }
+  ],
+  "movedTaskHints": [
+    {
+      "taskId": "task-id",
+      "title": "שם המשימה",
+      "rescheduleCount": 3,
+      "suggestedBoost": 8,
+      "reason": "המשימה הזו זזה כמה פעמים בעבר ולכן כדאי לתת לה מקום ברור"
+    }
+  ],
+  "warnings": [
+    "היו הרבה שינויי זמן בתקופה האחרונה, כדאי להשאיר מרווחים ביום"
+  ]
+}
+
+כללים:
+1. lookbackDays ברירת מחדל: 7 ימים אחורה מה-dateIso.
+2. השתמש ב-LearningEvents מה-DB.
+3. אל תשתמש ב-source=test כברירת מחדל, כדי שאירועי בדיקה לא ישפיעו על התעדוף.
+4. אם אין אירועים, החזר context ריק עם enabled:true וללא שגיאה.
+5. אם יש שגיאה בקריאת learning context, אסור לשבור את /api/planner/schedule. תחזיר schedule רגיל עם warning.
+6. כל ההקשר הוא read-only. לא כותבים DB.
+
+חישוב movedTaskHints:
+- ספור task_rescheduled לפי taskId.
+- אם אין taskId, אפשר להשתמש בכותרת taskTitleSnapshot.
+- אם משימה זזה פעם אחת: suggestedBoost = 3
+- אם משימה זזה פעמיים: suggestedBoost = 5
+- אם משימה זזה 3 פעמים ומעלה: suggestedBoost = 8
+- לא לתת boost מעל 8 למשימה מתוך היסטוריה.
+- הסיבה בעברית פשוטה.
+
+חישוב topCompletionHours:
+- ספור task_completed לפי occurredAt.getUTCHours().
+- החזר top 3 שעות בלבד.
+- כרגע timezoneMode הוא "utc" עד שנוסיף timezone משתמש בעתיד.
+
+חישוב warnings:
+- אם rescheduledCount ב-7 ימים גדול או שווה 5:
+  הוסף warning:
+  "זוהו הרבה שינויי זמן לאחרונה, כדאי לתכנן את היום עם יותר מרווחים"
+- אם completedCount הוא 0 ויש events אחרים:
+  הוסף warning:
+  "יש פעילות במערכת אבל לא נמצאו השלמות משימות בתקופה הזו"
+
+שילוב עם priorityScoreEngine:
+עדכן את priorityScoreEngine כך שיקבל context אופציונלי:
+
+calculatePriorityScore(task, context)
+
+ה-context יכול לכלול:
+- referenceDate
+- learningContext
+
+חשוב:
+אל תשבור קריאות קיימות.
+אם learningContext לא קיים, המנוע עובד בדיוק כמו קודם.
+
+תוספות ניקוד:
+- אם taskId מופיע ב-movedTaskHints:
+  הוסף suggestedBoost לציון.
+- אם אין התאמת taskId אבל title תואם ל-title ב-hint:
+  הוסף suggestedBoost מופחת: max 4.
+- הוסף סיבה ל-priorityReasons:
+  "המשימה הזו זזה בעבר כמה פעמים ולכן כדאי לתת לה מקום ברור"
+- סך תוספות הלמידה לא יעלה על 10 נקודות למשימה.
+- score סופי לא יעלה על 100.
+
+אל תוסיף כרגע הורדת ציון שלילית.
+רק boost עדין ואזהרות.
+לא מענישים משימות בשלב הזה.
+
+שילוב ב-server/routes/planner.ts:
+ב-POST /api/planner/schedule:
+
+1. טען rawTasks.
+2. בנה learningContext:
+   buildPlanningLearningContext(userId, dateIso, rawTasks)
+3. העבר את learningContext אל scoreAndSort / calculatePriorityScore.
+4. הוסף ל-response:
+   learningContextSummary:
+   {
+     enabled: true,
+     lookbackDays: 7,
+     topCompletionHours: [...],
+     warnings: [...]
+   }
+
+5. בכל scheduledTask הוסף:
+   learningBoost
+   learningReasons
+
+דוגמה:
+{
+  "id": "task-1",
+  "title": "לסיים הצעת מחיר",
+  "priorityScore": 91,
+  "priorityLevel": "critical",
+  "priorityReasons": [
+    "המשימה מוגדרת בעדיפות גבוהה",
+    "המשימה הזו זזה בעבר כמה פעמים ולכן כדאי לתת לה מקום ברור"
+  ],
+  "learningBoost": 8,
+  "learningReasons": [
+    "המשימה הזו זזה 3 פעמים בעבר"
+  ]
+}
+
+Frontend:
+עדכן את:
+src/lib/api/plannerClient.ts
+
+כך שהטיפוסים יכללו:
+- learningContextSummary
+- learningBoost
+- learningReasons
+
+עדכן את:
+src/components/planner/PlanMyDayButton.tsx
+
+ב-Preview:
+1. אם יש learningContextSummary.warnings:
+   הצג אזור קטן:
+   "מה סינקו למד מהתקופה האחרונה:"
+   ואז warnings.
+
+2. ליד כל משימה:
+   אם learningBoost גדול מ-0:
+   הצג:
+   "השפעת למידה: +8"
+   ומתחת:
+   learningReasons
+
+חשוב:
+אל תשנה את מבנה ה-Dialog בצורה רחבה.
+אל תוסיף dashboard.
+רק להוסיף מידע בתוך ה-Preview הקיים.
+
+Endpoint בדיקה נוסף:
+צור endpoint read-only אופציונלי:
+
+GET /api/learning/planning-context?userId=default-user&date=2026-05-08
+
+שמחזיר את buildPlanningLearningContext.
+זה נועד לבדיקה בלבד.
+
+אם לא נוח להוסיף endpoint, אפשר לדווח למה, אבל עדיף להוסיף.
+
+בדיקות חובה:
+1. npm run build
+2. GET /api/health
+3. POST /api/learning/events עם כמה task_rescheduled לאותה משימה
+4. POST /api/learning/events עם כמה task_completed בשעות שונות
+5. GET /api/learning/planning-context?userId=default-user&date=YYYY-MM-DD
+6. POST /api/planner/schedule עם משימה שיש לה taskId שהוזז בעבר
+7. ודא שהיא מקבלת learningBoost
+8. ודא ש-priorityScore כולל את ה-boost אבל לא עובר 100
+9. ודא ש-priorityReasons כולל סיבת למידה
+10. ודא שמשימה בלי היסטוריה עובדת רגיל
+11. ודא שאירועים עם source=test לא משפיעים כברירת מחדל
+12. ודא ש-learningContextSummary חוזר ב-response
+13. ודא שה-Preview מציג warnings אם יש
+14. ודא שה-Preview מציג learningBoost אם יש
+15. ודא ש-Preview עדיין לא שומר כלום בלי אישור
+16. ודא ש-"אשר סידור ושמור" עדיין שומר
+17. ודא ש-/api/planner/apply-schedule עדיין עובד
+18. ודא ש-/api/planner/parse עדיין עובד
+19. ודא ש-/api/learning/daily-summary עדיין עובד
+20. ודא ש-Drag & Drop לא נשבר
+21. ודא ש-DayView נטען
+22. ודא ש-localStorage migration לא נשברה
+
+בדיקות edge cases:
+- אין LearningEvents בכלל.
+- יש רק events מסוג test.
+- יש LearningEvents בלי taskId.
+- יש taskRescheduled לפי כותרת בלבד.
+- יש task עם score 98 ו-learningBoost 8, score חייב להישאר 100 ולא 106.
+- learning service נכשל, schedule עדיין צריך לעבוד רגיל.
+
+פלט סופי:
+החזר דוח בעברית במבנה הבא:
+
+# דוח שלב 3ב - Learning Context בתוך השיבוץ
+
+## 1. מה נבדק לפני שינוי
+טבלה:
+קובץ | למה נבדק | מסקנה
+
+## 2. החלטה ארכיטקטונית
+כתוב:
+- איפה נבנה planningLearningContextService
+- למה הוא מבודד
+- למה learning context הוא read-only
+- למה לא משתמשים עדיין ב-AI או Qdrant
+
+## 3. מה שונה
+טבלה:
+קובץ | שינוי | למה
+
+## 4. מה גובה
+טבלה:
+קובץ מקורי | קובץ גיבוי
+
+## 5. איך learning context מחושב
+הסבר:
+- lookbackDays
+- topCompletionHours
+- movedTaskHints
+- warnings
+- התעלמות מ-source=test
+
+## 6. איך זה משתלב ב-priorityScore
+כתוב:
+rawTasks
+→ learningContext
+→ priorityScore
+→ learningBoost
+→ sorting
+→ buildSchedule
+→ response
+
+## 7. דוגמת planningContext אמיתית
+הצג JSON אמיתי מהבדיקה.
+
+## 8. דוגמת scheduledTask עם learningBoost
+הצג JSON אמיתי של משימה שקיבלה boost.
+
+## 9. תוצאות build
+עבר / נכשל
+
+## 10. תוצאות API
+טבלה:
+בדיקה | תוצאה | הערה
+
+## 11. תוצאות UI
+טבלה:
+פעולה | תוצאה | הערה
+
+## 12. בדיקות שלא נשברו
+רשום:
+- planner/schedule
+- planner/apply-schedule
+- planner/parse
+- learning/events
+- learning/daily-summary
+- Preview
+- אישור ושמירה
+- Drag & Drop
+- DayView
+- localStorage migration
+- syncTasksFromServer
+
+## 13. דברים שלא שונו בכוונה
+רשום:
+- לא נוסף Auth
+- לא נוסף Google Calendar
+- לא נוסף Qdrant
+- לא נוסף AI
+- לא נוסף dashboard
+- לא שונה schedulePlanner עמוק
+- לא שונה recurringEngine
+- לא שונה hebrewDateParser
+
+## 14. סיכונים שנשארו
+רשום:
+- עדיין userId הוא default-user
+- עדיין timezone הוא UTC
+- learningBoost בסיסי בלבד
+- אין עדיין הורדת ציון לפי דפוסי עומס
+- אין עדיין המלצות לפי אנרגיה
+- אין עדיין למידת משך ביצוע אמיתי
+
+## 15. האם שלב 3ב סגור
+כן / לא
+
+## 16. השלב הבא
+השלב הבא צריך להיות:
+שלב 3ג - הוספת Execution Time Tracking:
+שמירת זמן התחלה בפועל, זמן סיום בפועל, והפרש בין duration מתוכנן לבין זמן ביצוע אמיתי.

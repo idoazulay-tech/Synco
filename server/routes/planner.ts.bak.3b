@@ -5,8 +5,6 @@ import { buildSchedule } from '../layers/task/planners/schedulePlanner.js';
 import { adaptUserTasksToScheduleTasks } from '../layers/task/adapters/userTaskToScheduleAdapter.js';
 import type { ScheduleConfig } from '../layers/task/types/scheduleTypes.js';
 import { scoreAndSort } from '../layers/task/priority/priorityScoreEngine.js';
-import { buildPlanningLearningContext } from '../services/planningLearningContextService.js';
-import type { PlanningLearningContext } from '../services/planningLearningContextService.js';
 
 const router = Router();
 
@@ -99,30 +97,14 @@ router.post('/schedule', async (req: Request, res: Response) => {
       });
     }
 
-    // ── Learning context (שלב 3ב): fire-and-forget on failure ─────────────────
-    let learningCtx: PlanningLearningContext | null = null;
-    const learningWarnings: string[] = [];
-    try {
-      learningCtx = await buildPlanningLearningContext(userId, dateIso, rawTasks);
-    } catch (lcErr: any) {
-      console.warn('[planner/schedule] learningContext failed (silent):', lcErr?.message);
-      learningWarnings.push('לא הצלחנו לטעון היסטוריית למידה — הסידור חושב ללא הקשר');
-    }
-
     // ── Priority scoring: score + sort rawTasks before adapter ────────────────
-    const scored = scoreAndSort(rawTasks, { referenceDate: dateIso, learningContext: learningCtx });
+    const scored = scoreAndSort(rawTasks, { referenceDate: dateIso });
 
-    // Build a lookup map: taskId → score data (including learning fields)
+    // Build a lookup map: taskId → score data
     const scoreMap = new Map(
       scored.map(s => [
         s.task.id as string,
-        {
-          score:           s.priorityScore,
-          level:           s.priorityLevel,
-          reasons:         s.priorityReasons,
-          learningBoost:   s.learningBoost,
-          learningReasons: s.learningReasons,
-        },
+        { score: s.priorityScore, level: s.priorityLevel, reasons: s.priorityReasons },
       ])
     );
 
@@ -142,10 +124,7 @@ router.post('/schedule', async (req: Request, res: Response) => {
       .filter(b => b.type === 'task' && b.refId)
       .map(b => {
         const task = scheduleTasks.find(t => t.id === b.refId);
-        const ps = scoreMap.get(b.refId!) ?? {
-          score: 0, level: 'low', reasons: [],
-          learningBoost: 0, learningReasons: [],
-        };
+        const ps = scoreMap.get(b.refId!) ?? { score: 0, level: 'low', reasons: [] };
         return {
           id: b.refId!,
           title: b.title,
@@ -156,8 +135,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
           priorityScore:   ps.score,
           priorityLevel:   ps.level,
           priorityReasons: ps.reasons,
-          learningBoost:   ps.learningBoost,
-          learningReasons: ps.learningReasons,
           reason: 'שובץ בזמן פנוי מתאים',
           confidence: 0.8,
         };
@@ -179,33 +156,19 @@ router.post('/schedule', async (req: Request, res: Response) => {
         return sum + Math.round(ms / 60000);
       }, 0);
 
-    const allWarnings = [
-      ...result.conflicts.map(c => c.message),
-      ...learningWarnings,
-      ...(learningCtx?.warnings ?? []),
-    ];
-
     res.json({
       ok: true,
       date: dateIso,
       userId,
       scheduledTasks,
       unscheduledTasks,
-      warnings: allWarnings,
+      warnings: result.conflicts.map(c => c.message),
       summary: {
         totalTasks:       scheduleTasks.length,
         scheduledCount:   scheduledTasks.length,
         unscheduledCount: unscheduledTasks.length,
         dayLoadMinutes,
       },
-      learningContextSummary: learningCtx
-        ? {
-            enabled:           learningCtx.enabled,
-            lookbackDays:      learningCtx.lookbackDays,
-            topCompletionHours: learningCtx.topCompletionHours,
-            warnings:          learningCtx.warnings,
-          }
-        : null,
     });
   } catch (error: any) {
     console.error('POST /api/planner/schedule error:', error);
