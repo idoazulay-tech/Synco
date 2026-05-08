@@ -1,5 +1,5 @@
 import { Task } from '@/types/task';
-import { startOfDay, addDays, addWeeks, addMonths, addYears, differenceInMilliseconds, differenceInCalendarMonths, differenceInCalendarYears, format, isBefore, isAfter, isSameDay } from 'date-fns';
+import { startOfDay, addDays, addWeeks, addMonths, addYears, set, differenceInMilliseconds, differenceInCalendarMonths, differenceInCalendarYears, format, isBefore, isAfter, isSameDay } from 'date-fns';
 
 export function isRecurringOccurrence(taskId: string): boolean {
   return taskId.includes('_occ_');
@@ -109,7 +109,10 @@ export function expandRecurring(task: Task, rangeStart: Date, rangeEnd: Date): T
   const masterEnd = new Date(task.endTime);
   const timeDelta = differenceInMilliseconds(masterEnd, masterStart);
   const anchorDay = startOfDay(masterStart);
-  const hoursOffset = masterStart.getTime() - anchorDay.getTime();
+  const wallHours = masterStart.getHours();
+  const wallMinutes = masterStart.getMinutes();
+  const wallSeconds = masterStart.getSeconds();
+  const wallMs = masterStart.getMilliseconds();
 
   const effectiveEnd = endType === 'date' && endDate
     ? new Date(endDate)
@@ -136,7 +139,7 @@ export function expandRecurring(task: Task, rangeStart: Date, rangeEnd: Date): T
 
     if (excludedSet.has(dateKey)) continue;
 
-    const occStart = new Date(candidate.getTime() + hoursOffset);
+    const occStart = set(candidate, { hours: wallHours, minutes: wallMinutes, seconds: wallSeconds, milliseconds: wallMs });
     const occEnd = new Date(occStart.getTime() + timeDelta);
 
     occurrences.push({
