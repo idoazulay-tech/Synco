@@ -1,0 +1,269 @@
+שלב 3א בפרויקט Synco: יצירת Daily Learning Summary בסיסי מתוך Learning Events.
+
+חשוב מאוד:
+אל תשנה את schedulePlanner.
+אל תשנה את buildSchedule.
+אל תשנה את priorityScoreEngine.
+אל תשנה את apply-schedule.
+אל תשנה את taskStore חוץ ממה שנדרש רק אם יש צורך לבדיקה.
+אל תשנה את recurringEngine.
+אל תשנה את hebrewDateParser.
+אל תוסיף Auth.
+אל תוסיף Google Calendar.
+אל תוסיף Qdrant.
+אל תוסיף AI API.
+אל תבנה dashboard חדש.
+אל תשנה UI בשלב הזה.
+אל תעשה refactor רחב.
+אל תחליף קבצים גדולים אם אפשר להוסיף קובץ קטן ומבודד.
+
+המטרה:
+לבנות endpoint שמחשב סיכום יומי מתוך LearningEvents שכבר נשמרים ב-PostgreSQL.
+
+הסיכום הזה עדיין לא משנה את השיבוץ.
+הוא רק מחזיר מידע מחושב על מה קרה ביום מסוים.
+
+רקע:
+בשלב 2ה נוצרו:
+POST /api/learning/events
+GET /api/learning/events
+
+ונשמרים eventTypes:
+- task_created
+- task_completed
+- task_rescheduled
+- task_deleted
+- schedule_applied
+
+עכשיו צריך ליצור:
+GET /api/learning/daily-summary?userId=default-user&date=2026-05-05
+
+ה-endpoint יחזיר:
+{
+  "ok": true,
+  "userId": "default-user",
+  "date": "2026-05-05",
+  "summary": {
+    "createdCount": 3,
+    "completedCount": 2,
+    "rescheduledCount": 4,
+    "deletedCount": 1,
+    "scheduleAppliedCount": 1,
+    "totalEvents": 11,
+    "completionHours": [
+      { "hour": 9, "count": 2 },
+      { "hour": 14, "count": 1 }
+    ],
+    "mostMovedTasks": [
+      {
+        "taskId": "task-id",
+        "title": "שם המשימה",
+        "rescheduleCount": 3
+      }
+    ],
+    "taskIdsTouched": ["..."],
+    "notes": [
+      "היו 4 שינויי זמן ביום הזה",
+      "היו 2 משימות שהושלמו"
+    ]
+  }
+}
+
+לפני שינוי:
+בדוק את הקבצים:
+- prisma/schema.prisma
+- server/routes/learning.ts
+- server/index.ts
+- server/lib/prisma.ts
+- server/routes/planner.ts
+- src/lib/api/learningClient.ts אם קיים
+
+בדוק:
+1. איך LearningEvent מוגדר ב-Prisma.
+2. באיזה שדה נשמר dateIso.
+3. באיזה שדה נשמר occurredAt.
+4. האם metadata נשמר כ-Json.
+5. האם taskTitleSnapshot קיים.
+6. האם /api/learning/events כבר נמצא בתוך server/index.ts.
+
+גבה כל קובץ שאתה משנה.
+
+החלטה ארכיטקטונית:
+צור קובץ שירות מבודד:
+
+server/services/learningSummaryService.ts
+
+או אם יש מבנה services קיים תחת server/layers/learning:
+server/layers/learning/learningSummaryService.ts
+
+אל תכניס את כל החישוב ישירות לתוך route.
+
+השירות צריך לייצא פונקציה:
+
+buildDailyLearningSummary(userId: string, dateIso: string)
+
+הפונקציה:
+1. שולפת LearningEvents מה-DB לפי userId ו-dateIso.
+2. אם dateIso חסר בחלק מהאירועים, אפשר להשתמש ב-occurredAt לפי תחילת וסוף היום.
+3. מחשבת counts לפי eventType.
+4. מחשבת completionHours לפי task_completed.
+5. מחשבת mostMovedTasks לפי task_rescheduled.
+6. מחזירה notes פשוטים בעברית.
+7. לא משתמשת ב-AI.
+8. לא כותבת שום דבר ל-DB בשלב הזה.
+
+Route:
+בתוך server/routes/learning.ts הוסף:
+
+GET /daily-summary
+
+או אם ה-router מחובר תחת /api/learning:
+הנתיב הסופי צריך להיות:
+
+GET /api/learning/daily-summary?userId=default-user&date=2026-05-05
+
+Validation:
+1. userId חובה.
+2. date חובה בפורמט YYYY-MM-DD.
+3. אם חסר userId או date, החזר 400.
+4. אם אין אירועים, החזר ok:true עם summary ריק ולא שגיאה.
+5. אם יש שגיאת DB, החזר 500 עם הודעה פשוטה.
+
+Response כאשר אין אירועים:
+{
+  "ok": true,
+  "userId": "default-user",
+  "date": "2026-05-05",
+  "summary": {
+    "createdCount": 0,
+    "completedCount": 0,
+    "rescheduledCount": 0,
+    "deletedCount": 0,
+    "scheduleAppliedCount": 0,
+    "totalEvents": 0,
+    "completionHours": [],
+    "mostMovedTasks": [],
+    "taskIdsTouched": [],
+    "notes": ["לא נמצאו אירועי למידה ליום הזה"]
+  }
+}
+
+Frontend:
+לא חייב UI בשלב הזה.
+
+אם קיים:
+src/lib/api/learningClient.ts
+
+הוסף פונקציה:
+getDailyLearningSummary(userId, dateIso)
+
+אבל אל תחבר למסך עדיין.
+
+בדיקות חובה:
+1. npm run build
+2. GET /api/health
+3. GET /api/learning/events?userId=default-user
+4. POST /api/learning/events עם task_created
+5. POST /api/learning/events עם task_completed
+6. POST /api/learning/events עם task_rescheduled
+7. POST /api/learning/events עם task_deleted
+8. POST /api/learning/events עם schedule_applied
+9. GET /api/learning/daily-summary?userId=default-user&date=YYYY-MM-DD
+10. בדוק שה-counts נכונים.
+11. בדוק ש-completionHours עובד.
+12. בדוק ש-mostMovedTasks עובד.
+13. בדוק שיום בלי אירועים מחזיר summary ריק ולא crash.
+14. בדוק ש-userId חסר מחזיר 400.
+15. בדוק ש-date חסר מחזיר 400.
+16. בדוק ש-/api/planner/schedule עדיין עובד.
+17. בדוק ש-/api/planner/apply-schedule עדיין עובד.
+18. בדוק ש-/api/planner/parse עדיין עובד.
+19. בדוק ש-DayView עדיין נטען.
+20. בדוק ש-Drag & Drop לא נשבר.
+
+פלט סופי:
+החזר דוח בעברית במבנה הבא:
+
+# דוח שלב 3א - Daily Learning Summary
+
+## 1. מה נבדק לפני שינוי
+טבלה:
+קובץ | למה נבדק | מסקנה
+
+## 2. החלטה ארכיטקטונית
+כתוב:
+- איפה נבנה שירות הסיכום
+- למה הוא מבודד מה-route
+- האם הסיכום כותב ל-DB או read-only
+
+## 3. מה שונה
+טבלה:
+קובץ | שינוי | למה
+
+## 4. מה גובה
+טבלה:
+קובץ מקורי | קובץ גיבוי
+
+## 5. איך הסיכום מחושב
+הסבר:
+- counts לפי eventType
+- completionHours
+- mostMovedTasks
+- taskIdsTouched
+- notes
+
+## 6. איך הזרימה עובדת עכשיו
+כתוב:
+LearningEvents ב-DB
+→ GET daily-summary
+→ service מחשב
+→ response עם summary
+
+## 7. דוגמת response אמיתי
+הצג JSON אמיתי מהבדיקה.
+
+## 8. תוצאות build
+עבר / נכשל
+
+## 9. תוצאות API
+טבלה:
+בדיקה | תוצאה | הערה
+
+## 10. תוצאות DB
+כתוב כמה LearningEvents נמצאו לאותו יום.
+
+## 11. בדיקות שלא נשברו
+רשום:
+- planner/schedule
+- planner/apply-schedule
+- planner/parse
+- learning/events
+- Drag & Drop
+- DayView
+- localStorage migration
+- syncTasksFromServer
+
+## 12. דברים שלא שונו בכוונה
+רשום:
+- לא נוסף Auth
+- לא נוסף Google Calendar
+- לא נוסף Qdrant
+- לא נוסף AI
+- לא שונה priorityScoreEngine
+- לא שונה schedulePlanner
+- לא נוסף dashboard
+
+## 13. סיכונים שנשארו
+רשום:
+- עדיין userId הוא default-user
+- עדיין אין תובנות אוטומטיות
+- עדיין הסיכום הוא read-only
+- עדיין אין שימוש בסיכום לשיפור השיבוץ
+- עדיין אין timezone מלא לפי משתמש
+
+## 14. האם שלב 3א סגור
+כן / לא
+
+## 15. השלב הבא
+השלב הבא צריך להיות:
+שלב 3ב - שימוש ב-Daily Learning Summary כהקשר לשיפור priorityScore והשיבוץ, בלי AI ובלי שינוי אוטומטי מסוכן.

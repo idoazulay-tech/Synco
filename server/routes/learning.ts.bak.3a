@@ -3,7 +3,6 @@
 import { Router, Request, Response } from 'express';
 import { LearningEngine, getLearningStore } from '../layers/learning/index.js';
 import { prisma } from '../lib/prisma.js';
-import { buildDailyLearningSummary } from '../services/learningSummaryService.js';
 
 const router = Router();
 
@@ -248,31 +247,6 @@ router.post('/events', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('POST /api/learning/events error:', error);
     res.status(500).json({ ok: false, error: 'Failed to save learning event' });
-  }
-});
-
-// GET /api/learning/daily-summary?userId=default-user&date=YYYY-MM-DD
-router.get('/daily-summary', async (req: Request, res: Response) => {
-  try {
-    const userId  = req.query.userId as string | undefined;
-    const dateIso = req.query.date  as string | undefined;
-
-    if (!userId) {
-      return res.status(400).json({ ok: false, error: 'userId is required' });
-    }
-    if (!dateIso) {
-      return res.status(400).json({ ok: false, error: 'date is required (YYYY-MM-DD)' });
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) {
-      return res.status(400).json({ ok: false, error: 'date must be in YYYY-MM-DD format' });
-    }
-
-    const summary = await buildDailyLearningSummary(userId, dateIso);
-
-    res.json({ ok: true, userId, date: dateIso, summary });
-  } catch (error: any) {
-    console.error('GET /api/learning/daily-summary error:', error);
-    res.status(500).json({ ok: false, error: 'Failed to build daily summary' });
   }
 });
 
