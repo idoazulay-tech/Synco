@@ -1,0 +1,269 @@
+תיקון UI ממוקד בפרויקט Synco:
+Adaptive Task Block Layout לדף היום.
+
+המטרה:
+לשפר את תצוגת המשימות בדף היום כך שגם משימות קצרות מאוד, בין 1 ל-30 דקות, יהיו קריאות וברורות בתוך קוביית המשימה.
+
+הבעיה:
+בדף היום משימות קצרות מקבלות גובה נמוך לפי משך הזמן שלהן.
+כרגע הטקסט נחתך, נדחס, או לא מוצג בצורה קריאה.
+המשתמש לא מצליח לראות את שם המשימה והזמן בתוך הקובייה, במיוחד במשימות קצרות בין 1 ל-30 דקות.
+
+החלטת מוצר:
+לא לשנות את גובה המשימה לפי הטקסט.
+לא לתת לטקסט לגלוש מחוץ לגבולות הקובייה.
+לא להסתיר מידע בצורה שמרגישה שבורה.
+כן ליצור תבנית תצוגה אדפטיבית:
+ככל שהקובייה נמוכה יותר, התוכן שבתוכה נהיה פשוט, קצר וברור יותר.
+
+חשוב מאוד:
+זה תיקון UI בלבד.
+
+אל תשנה את schedulePlanner.
+אל תשנה את buildSchedule.
+אל תשנה את priorityScoreEngine.
+אל תשנה את planner/schedule.
+אל תשנה את planner/apply-schedule.
+אל תשנה את planner/commit-draft-schedule.
+אל תשנה את taskStore לוגית.
+אל תשנה Drag & Drop.
+אל תשנה resize logic.
+אל תשנה זמני משימות.
+אל תשנה DB.
+אל תוסיף Auth.
+אל תוסיף Google Calendar.
+אל תוסיף Qdrant.
+אל תעשה refactor רחב.
+אל תחליף את כל DayViewPage אם אפשר שינוי קטן וממוקד.
+
+לפני שינוי:
+בדוק את הקבצים:
+- src/pages/DayViewPage.tsx
+- src/components/task/TaskCard.tsx אם קיים
+- src/components/task/
+- src/types/task.ts
+- src/store/taskStore.ts
+- כל קובץ CSS/Tailwind שקשור ל-DayView task blocks
+
+גבה כל קובץ שאתה משנה.
+
+דרישות תצוגה:
+
+1. צור מנגנון adaptive display לפי גובה הבלוק או לפי durationMinutes.
+
+אם קל לחשב לפי height בפועל, עדיף לפי height.
+אם לא, השתמש לפי durationMinutes.
+
+מצבים מומלצים:
+
+full:
+- משימות רגילות מעל 45 דקות
+- מציג שם, שעה, משך, פרטים קטנים אם קיימים
+
+compact:
+- 16 עד 45 דקות
+- מציג שורה אחת:
+  שם המשימה + שעה
+- בלי תיאור ארוך
+- בלי badges גדולים
+- בלי טקסט שיורד שורה
+
+tiny:
+- 6 עד 15 דקות
+- מציג שורה אחת דחוסה:
+  שעה קצרה + שם מקוצר
+- font קטן יותר
+- line-height קטן
+- ellipsis אם אין מקום
+
+micro:
+- 1 עד 5 דקות
+- מציג פס מידע מינימלי:
+  שעה + שם קצר
+- אם אין מקום, רק שם קצר או שעה + ellipsis
+- פירוט מלא נשאר בלחיצה
+
+2. הטקסט חייב להישאר בתוך גבולות הקובייה.
+לא להשתמש ב-overflow visible שמוציא טקסט החוצה.
+השתמש ב:
+- overflow: hidden
+- text-overflow: ellipsis
+- white-space: nowrap
+- min-width: 0
+- direction: rtl
+- text-align: right
+
+3. התבנית צריכה להיות פשוטה ואחידה:
+כל קוביית משימה צריכה להרגיש אותו רכיב, רק במצב תצוגה שונה.
+
+4. במשימות קצרות:
+אל תציג:
+- description
+- priority reasons
+- duration suggestion
+- learning reasons
+- טקסטים ארוכים
+- badges גדולים
+
+המידע הזה יישאר במסך פירוט / בלחיצה.
+
+5. במשימות קצרות כן להציג:
+- title
+- start/end time אם יש מקום
+- status מינימלי אם כבר קיים ולא מפריע
+
+6. אם שם המשימה ארוך:
+השתמש ב-ellipsis.
+דוגמה:
+"לארגן תיק ליציאה ליהוד..." במקום שבירת שורות.
+
+7. אם יש עברית:
+ודא שהטקסט לא מתהפך.
+חובה:
+direction: rtl
+unicode-bidi: plaintext אם צריך
+text-align: right
+
+8. בלחיצה על משימה קצרה:
+ההתנהגות הקיימת חייבת להישאר:
+- פתיחת פרטים
+- עריכה
+- השלמה
+- drag
+- resize
+כל מה שעבד קודם צריך להמשיך לעבוד.
+
+9. אם יש tooltip פשוט בדסקטופ:
+אפשר להוסיף title attribute עם:
+שם מלא + שעה.
+אבל לא לבנות tooltip מורכב.
+
+10. אם יש רכיב task block פנימי, עדיף ליצור helper קטן:
+
+getTaskDisplayMode(task, blockHeightPx)
+
+או:
+
+getTaskDisplayModeByDuration(durationMinutes)
+
+לדוגמה:
+duration <= 5 → micro
+duration <= 15 → tiny
+duration <= 45 → compact
+else → full
+
+אם אין duration, fallback ל-full או compact לפי height.
+
+11. עדיף ליצור component קטן אם זה לא refactor רחב:
+
+src/components/task/AdaptiveTaskBlockContent.tsx
+
+Props:
+- task
+- startTime
+- endTime
+- durationMinutes
+- mode
+
+אבל אם DayView בנוי בצורה שמסוכן להוציא רכיב, אפשר להשאיר helper פנימי בתוך DayViewPage.
+
+12. אין לשנות את מיקום הבלוקים.
+אין לשנות את גובה הבלוקים.
+אין לשנות את חישוב start/end.
+רק את התוכן הפנימי.
+
+בדיקות חובה:
+
+Build:
+1. npm run build
+
+UI:
+2. דף /day נטען
+3. משימה של 1 דקה מוצגת בצורה קריאה ככל האפשר
+4. משימה של 5 דקות מוצגת כ-micro
+5. משימה של 10 דקות מוצגת כ-tiny
+6. משימה של 20 דקות מוצגת כ-compact
+7. משימה של 30 דקות מוצגת כ-compact
+8. משימה של 60 דקות מוצגת כ-full או כמעט full
+9. שם ארוך מקבל ellipsis
+10. עברית מוצגת מימין לשמאל
+11. הטקסט לא גולש מחוץ לקובייה
+12. הטקסט לא עולה על משימות אחרות
+13. לחיצה על משימה קצרה עדיין פותחת פירוט
+14. Drag & Drop עדיין עובד
+15. Resize עדיין עובד
+16. משימות חופפות אם ישנן לא נשברות ויזואלית
+
+API / ליבה:
+17. planner/schedule עדיין עובד
+18. planner/apply-schedule עדיין עובד
+19. planner/commit-draft-schedule עדיין עובד
+20. planner/parse עדיין עובד
+21. syncTasksFromServer לא נשבר
+22. localStorage migration לא נשברה
+
+פלט סופי:
+החזר דוח בעברית במבנה הבא:
+
+# דוח תיקון UI - Adaptive Task Block Layout
+
+## 1. מה נבדק לפני שינוי
+טבלה:
+קובץ | למה נבדק | מסקנה
+
+## 2. הבעיה שאותרה
+כתוב:
+משימות קצרות מקבלות גובה נמוך ולכן טקסט מלא לא נכנס בצורה קריאה.
+
+## 3. החלטה עיצובית
+כתוב:
+- למה לא משתמשים ב-overflow visible
+- למה כן משתמשים בתוכן אדפטיבי
+- מה ההבדל בין full / compact / tiny / micro
+
+## 4. מה שונה
+טבלה:
+קובץ | שינוי | למה
+
+## 5. מה גובה
+טבלה:
+קובץ מקורי | קובץ גיבוי
+
+## 6. איך התצוגה עובדת עכשיו
+כתוב:
+duration / height
+→ display mode
+→ תוכן מקוצר
+→ ellipsis
+→ פירוט מלא בלחיצה
+
+## 7. תוצאות build
+עבר / נכשל
+
+## 8. תוצאות UI
+טבלה:
+בדיקה | תוצאה | הערה
+
+## 9. בדיקות שלא נשברו
+רשום:
+- DayView
+- Task click
+- Drag & Drop
+- Resize
+- planner/schedule
+- planner/apply-schedule
+- planner/commit-draft-schedule
+- syncTasksFromServer
+- localStorage migration
+
+## 10. דברים שלא שונו בכוונה
+רשום:
+- לא שונה שיבוץ
+- לא שונו זמנים
+- לא שונה DB
+- לא שונה schedulePlanner
+- לא שונה priorityScoreEngine
+- לא נוסף פיצ׳ר חדש
+
+## 11. האם התיקון סגור
+כן / לא

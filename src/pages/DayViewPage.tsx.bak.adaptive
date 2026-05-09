@@ -25,16 +25,6 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const HOUR_HEIGHT = 80;
 const MIN_TASK_HEIGHT = 20;
 
-type TaskDisplayMode = 'full' | 'compact' | 'tiny' | 'micro';
-
-function getDisplayMode(rawHeightPx: number): TaskDisplayMode {
-  const durationMin = Math.round(rawHeightPx / HOUR_HEIGHT * 60);
-  if (durationMin <= 5)  return 'micro';
-  if (durationMin <= 15) return 'tiny';
-  if (durationMin <= 45) return 'compact';
-  return 'full';
-}
-
 interface DragState {
   taskId: string;
   type: 'move' | 'resize-top' | 'resize-bottom';
@@ -82,18 +72,6 @@ const TaskItem = ({
 
   const columnWidth = 100 / position.totalColumns;
   const leftPercent = position.column * columnWidth;
-  const actualHeight = Math.max(position.height, MIN_TASK_HEIGHT);
-  const displayMode = getDisplayMode(position.height);
-
-  const startStr = format(task.startTime, 'HH:mm');
-  const endStr   = format(task.endTime,   'HH:mm');
-
-  const titleColor = (isActive || !isOverlapping)
-    ? 'text-primary-foreground'
-    : 'text-slate-900 dark:text-white';
-  const timeColor = (isActive || !isOverlapping)
-    ? 'text-primary-foreground/70'
-    : 'text-slate-700 dark:text-white/70';
 
   return (
     <motion.div
@@ -104,25 +82,23 @@ const TaskItem = ({
         'transition-shadow duration-200',
         isDragging ? 'shadow-2xl z-50 cursor-grabbing' : 'cursor-pointer hover:ring-2 hover:ring-primary/20',
         'border border-gray-800 dark:border-gray-300',
-        isActive
-          ? 'bg-primary text-primary-foreground shadow-lg'
-          : isOverlapping
+        isActive 
+          ? 'bg-primary text-primary-foreground shadow-lg' 
+          : isOverlapping 
             ? 'bg-sky-300 dark:bg-sky-500 text-slate-900 dark:text-white'
             : 'bg-primary text-primary-foreground'
       )}
       style={{
         top: `${position.top}px`,
-        height: `${actualHeight}px`,
+        height: `${Math.max(position.height, MIN_TASK_HEIGHT)}px`,
         left: `calc(${leftPercent}% + 4px)`,
         width: `calc(${columnWidth}% - 8px)`,
         zIndex: isDragging ? 100 : (isActive ? 20 : 10),
       }}
-      title={`${task.title} · ${startStr}–${endStr}`}
     >
-      {/* ── Resize top handle ── */}
       {!isOccurrence && (
-        <div
-          className="absolute top-0 left-0 right-0 h-3 cursor-ns-resize flex items-center justify-center opacity-0 hover:opacity-100 bg-black/10 z-10"
+        <div 
+          className="absolute top-0 left-0 right-0 h-3 cursor-ns-resize flex items-center justify-center opacity-0 hover:opacity-100 bg-black/10"
           onMouseDown={(e) => { e.stopPropagation(); onResizeStart(e, task.id, 'top'); }}
           onTouchStart={(e) => { e.stopPropagation(); onResizeStart(e, task.id, 'top'); }}
         >
@@ -130,81 +106,45 @@ const TaskItem = ({
         </div>
       )}
 
-      {/* ── Adaptive content ── */}
-      <div
-        className={cn(
-          'absolute inset-0 flex flex-col justify-center overflow-hidden',
-          displayMode === 'full'    ? 'px-2 py-1.5' :
-          displayMode === 'compact' ? 'px-1.5 py-0.5' :
-                                      'px-1 py-0',
-          isOccurrence ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'
-        )}
+      <div 
+        className={cn("flex-1 p-2", isOccurrence ? "cursor-pointer" : "cursor-grab active:cursor-grabbing")}
         onClick={onClick}
         onMouseDown={(e) => !isOccurrence && onDragStart(e, task.id)}
         onTouchStart={(e) => !isOccurrence && onDragStart(e, task.id)}
-        dir="rtl"
       >
-        {/* full: title on one line, time below */}
-        {displayMode === 'full' && (
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <p className={cn('text-xs md:text-sm font-semibold truncate', titleColor)}>
-                {isOccurrence && <Repeat className="w-3 h-3 inline-block ml-1" />}
-                {task.title}
-              </p>
-              <p className={cn('text-[10px] mt-0.5 tabular-nums', timeColor)}>
-                {startStr} – {endStr}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <p className={cn(
+              'text-xs md:text-sm font-semibold truncate',
+              (isActive || !isOverlapping) && 'text-primary-foreground',
+              isOverlapping && !isActive && 'text-slate-900 dark:text-white'
+            )}>
+              {isOccurrence && <Repeat className="w-3 h-3 inline-block ml-1" />}
+              {task.title}
+            </p>
+            <p className={cn(
+              'text-[10px] mt-0.5',
+              (isActive || !isOverlapping) ? 'text-primary-foreground/70' : 'text-slate-700 dark:text-white/70'
+            )}>
+              {format(task.startTime, 'HH:mm')} - {format(task.endTime, 'HH:mm')}
+            </p>
+          </div>
+
+          {isActive && position.height > 60 && (
+            <div className="flex-shrink-0 text-right">
+              <p className={cn(
+                'text-lg font-bold tabular-nums',
+                isUrgent ? 'text-destructive' : 'text-primary-foreground'
+              )}>
+                {Math.round(percentage)}%
               </p>
             </div>
-            {isActive && actualHeight > 60 && (
-              <div className="flex-shrink-0">
-                <p className={cn('text-lg font-bold tabular-nums', isUrgent ? 'text-destructive' : 'text-primary-foreground')}>
-                  {Math.round(percentage)}%
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* compact: title + start time on one line */}
-        {displayMode === 'compact' && (
-          <div className="flex items-center gap-1 min-w-0 w-full overflow-hidden">
-            <span className={cn('text-xs font-semibold truncate flex-1 min-w-0 leading-tight', titleColor)}>
-              {isOccurrence && <Repeat className="w-2.5 h-2.5 inline-block ml-0.5" />}
-              {task.title}
-            </span>
-            <span className={cn('text-[10px] flex-shrink-0 whitespace-nowrap tabular-nums leading-tight', timeColor)}>
-              {startStr}
-            </span>
-          </div>
-        )}
-
-        {/* tiny: small time + short title on one compressed line */}
-        {displayMode === 'tiny' && (
-          <div className="flex items-center gap-0.5 min-w-0 w-full overflow-hidden">
-            <span className={cn('text-[9px] leading-none font-bold flex-shrink-0 whitespace-nowrap tabular-nums', timeColor)}>
-              {startStr}
-            </span>
-            <span className={cn('text-[9px] leading-none font-medium truncate flex-1 min-w-0', titleColor)}>
-              {isOccurrence && <Repeat className="w-2 h-2 inline-block ml-0.5" />}
-              {task.title}
-            </span>
-          </div>
-        )}
-
-        {/* micro: just title, smallest possible */}
-        {displayMode === 'micro' && (
-          <div className="flex items-center min-w-0 w-full overflow-hidden">
-            <span className={cn('text-[9px] leading-none font-semibold truncate w-full', titleColor)}>
-              {task.title}
-            </span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* ── Progress bar (full/compact only, when active) ── */}
-      {isActive && (displayMode === 'full' || displayMode === 'compact') && actualHeight > 30 && (
-        <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary-foreground/20">
+      {isActive && position.height > 50 && (
+        <div className="w-full h-1.5 bg-primary-foreground/20">
           <motion.div
             className={cn('h-full', getProgressColor())}
             initial={{ width: 0 }}
@@ -214,10 +154,9 @@ const TaskItem = ({
         </div>
       )}
 
-      {/* ── Resize bottom handle ── */}
       {!isOccurrence && (
-        <div
-          className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex items-center justify-center opacity-0 hover:opacity-100 bg-black/10 z-10"
+        <div 
+          className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize flex items-center justify-center opacity-0 hover:opacity-100 bg-black/10"
           onMouseDown={(e) => { e.stopPropagation(); onResizeStart(e, task.id, 'bottom'); }}
           onTouchStart={(e) => { e.stopPropagation(); onResizeStart(e, task.id, 'bottom'); }}
         >
