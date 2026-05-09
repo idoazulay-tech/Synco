@@ -1,0 +1,319 @@
+Sprint Pack 3ד+1 בפרויקט Synco:
+Use Duration Suggestion for Drafts + Re-Schedule Preview + Trust QA
+
+מטרה:
+לאפשר למשתמש להשתמש בהצעת משך של סינקו עבור DraftTasks בלבד, לפני שהמשימות נשמרות כ-UserTasks אמיתיות.
+
+ההתנהגות הרצויה:
+אם סינקו מציג:
+"משך נוכחי: 20 דק׳"
+"הצעה: 45 דק׳"
+
+אז בטיוטות בלבד יופיע כפתור:
+"השתמש בהצעה"
+
+בלחיצה:
+1. durationMinutes של ה-DraftTask מתעדכן ב-planningDraftStore.
+2. ה-Preview מחושב מחדש.
+3. השיבוץ החדש מוצג למשתמש.
+4. שום דבר לא נשמר ל-DB עד לחיצה על "אשר ושמור".
+5. משימות קיימות ב-DB לא משתנות אוטומטית.
+
+חשוב מאוד:
+אל תשנה את schedulePlanner עמוק.
+אל תשנה את buildSchedule.
+אל תשנה את priorityScoreEngine.
+אל תשנה את durationIntelligenceService אלא אם חייבים תיקון קטן.
+אל תשנה את planningLearningContextService.
+אל תשנה את planningTimeGuardService.
+אל תשנה את planningAnchorContextService.
+אל תשנה planner/apply-schedule.
+אל תשנה planner/commit-draft-schedule חוץ מתאימות אם צריך.
+אל תשבור PlanningDraftPanel.
+אל תשבור PlanMyDayButton.
+אל תשבור Preview.
+אל תשבור אישור ושמירה.
+אל תשבור Drag & Drop.
+אל תשבור DayView.
+אל תשבור syncTasksFromServer.
+אל תשבור localStorage migration.
+אל תוסיף Auth.
+אל תוסיף Google Calendar.
+אל תוסיף Qdrant.
+אל תוסיף AI.
+אל תבנה dashboard.
+אל תשנה UserTask duration אוטומטית.
+אל תשמור duration חדש ל-DB לפני אישור משתמש.
+
+לפני שינוי:
+בדוק את הקבצים:
+- server/services/durationIntelligenceService.ts
+- server/routes/planner.ts
+- src/lib/api/plannerClient.ts
+- src/store/planningDraftStore.ts
+- src/components/planner/PlanningDraftPanel.tsx
+- src/components/planner/EditDraftTaskDialog.tsx
+- src/components/planner/PlanMyDayButton.tsx
+- src/lib/adapters/planningDraftToPlannerTask.ts
+- src/types/planningDraft.ts
+- src/types/task.ts
+- src/store/taskStore.ts
+
+בדוק במיוחד:
+1. איפה מוצג DurationSuggestionPanel כרגע.
+2. האם הוא נמצא רק ב-PlanMyDayButton או גם ב-Draft Preview.
+3. האם scheduledTask יודע אם הוא הגיע מ-DraftTask או UserTask.
+4. האם scheduledTask id עבור DraftTask הוא draftId.
+5. האם planningDraftStore.updateDraftTask() זמין.
+6. איך re-run של scheduleDraftTasksPreview מתבצע.
+7. האם אפשר לעדכן draft duration ואז לקרוא שוב ל-planner/schedule בלי לשמור DB.
+8. האם commit-draft-schedule מקבל את ה-duration המעודכן מה-draftTasks.
+
+חלק 1: הבחנה בין Draft Preview ל-UserTask Preview
+
+הוסף, אם לא קיים, שדה safe metadata ל-preview items:
+
+sourceKind:
+- "draft"
+- "user_task"
+
+אם קשה להוסיף sourceKind מהשרת, אפשר בצד client לדעת לפי flow:
+- PlanningDraftPanel Preview = draft mode
+- PlanMyDayButton Preview = user_task mode
+
+הכלל:
+- ב-draft mode מותר להציג כפתור "השתמש בהצעה".
+- ב-user_task mode לא לשנות DB ולא לשנות duration. אפשר להציג רק את ההצעה.
+
+חלק 2: רכיב UI משותף ל-Duration Suggestion
+
+אם DurationSuggestionPanel נמצא בתוך PlanMyDayButton בלבד, הוצא אותו לקובץ מבודד:
+
+src/components/planner/DurationSuggestionPanel.tsx
+
+Props:
+{
+  suggestion: DurationSuggestion
+  mode: "read_only" | "draft_editable"
+  onUseSuggestion?: () => void
+}
+
+התנהגות:
+- read_only:
+  מציג הצעה בלבד, בלי כפתור.
+- draft_editable:
+  מציג כפתור "השתמש בהצעה".
+
+חשוב:
+אל תעשה refactor רחב.
+אם הוצאה לרכיב משותף מסבכת, השאר מקומי ודווח.
+אבל עדיף רכיב משותף קטן.
+
+חלק 3: שימוש בהצעה בטיוטה
+
+ב-PlanningDraftPanel:
+
+כאשר Draft Preview חוזר עם durationSuggestion:
+הצג DurationSuggestionPanel במצב:
+draft_editable
+
+בלחיצה על "השתמש בהצעה":
+1. מצא את draftTask לפי id/draftId.
+2. updateDraftTask(draftId, { durationMinutes: suggestedDurationMinutes })
+3. הצג הודעה קטנה:
+   "משך המשימה עודכן לפי ההצעה של סינקו"
+4. הרץ מחדש scheduleDraftTasksPreview עבור המשימות של אותו תאריך.
+5. הצג Preview חדש.
+
+אסור:
+- לא ליצור UserTask.
+- לא לשמור DB.
+- לא להפעיל commit-draft-schedule.
+- לא לשנות משימות קיימות.
+- לא לשנות UserTask duration.
+
+חלק 4: שמירה סופית
+
+כאשר המשתמש לוחץ "אשר ושמור" אחרי שימוש בהצעת משך:
+commit-draft-schedule צריך לקבל draftTasks עם durationMinutes המעודכן.
+ה-UserTasks שנוצרות ב-DB צריכות לקבל את ה-duration החדש.
+
+בדוק:
+אם commit-draft-schedule כבר משתמש ב-draftTasks מה-store, כנראה זה יעבוד אוטומטית.
+אם הוא משתמש ב-preview הישן בלבד, תקן כך שישתמש ב-draftTasks העדכניים.
+
+חלק 5: Trust QA קטן בתוך אותו Sprint
+
+הוסף או הרץ בדיקות שמוודאות:
+
+1. DraftTask חדשה לא מקבלת learningBoost.
+2. DraftTask יכולה לקבל durationSuggestion רק אם יש התאמת היסטוריה שמרנית.
+3. לחיצה "השתמש בהצעה" משנה רק DraftTask.
+4. Preview רגיל של UserTask לא משנה duration.
+5. No Past Scheduling עדיין עובד אחרי שינוי duration.
+6. Anchor Context עדיין עובד אחרי שינוי duration.
+7. commit-draft-schedule שומר את ה-duration המעודכן רק אחרי אישור.
+8. אם המשתמש לא מאשר, DB לא משתנה.
+9. אם המשתמש לוחץ "לא עכשיו", אין שינוי ב-DB.
+10. אם re-schedule נכשל אחרי שימוש בהצעה, ה-DraftTask נשאר מעודכן אבל מוצגת שגיאה ברורה.
+
+חלק 6: בדיקות חובה
+
+Build:
+1. npm run build
+
+API:
+2. GET /api/health
+3. POST /api/learning/events task_execution_completed כדי ליצור נתוני duration
+4. POST /api/planner/schedule עם DraftTask דומה וודא durationSuggestion חוזר
+5. POST /api/planner/commit-draft-schedule אחרי update duration
+6. ודא ש-UserTask שנוצר קיבל durationMinutes המעודכן
+7. planner/apply-schedule עדיין עובד
+8. planner/parse עדיין עובד
+9. learning/daily-summary עדיין עובד
+10. learning/planning-context עדיין עובד
+11. learning/duration-suggestions עדיין עובד
+
+UI:
+12. PlanningDraftPanel מציג durationSuggestion
+13. כפתור "השתמש בהצעה" מופיע רק ב-draft mode
+14. לחיצה עליו מעדכנת durationMinutes ב-draft store
+15. Preview מחושב מחדש
+16. UserTask Preview מציג הצעה read-only בלבד
+17. Preview לא שומר לפני אישור
+18. אישור ושמירה יוצר UserTask עם duration מעודכן
+19. ביטול לא שומר ל-DB
+20. Drag & Drop לא נשבר
+21. DayView לא נשבר
+22. syncTasksFromServer לא נשבר
+23. localStorage migration לא נשברה
+
+Edge cases:
+24. durationSuggestion לא קיים → אין כפתור
+25. suggestedDurationMinutes חסר → אין כפתור
+26. suggestedDurationMinutes קטן מ-1 → אין כפתור
+27. sampleSize=1 confidence low → עדיין אפשר להציג, אבל להוסיף טקסט "ביטחון נמוך"
+28. title match חלש → אין suggestion
+29. source=test → לא משפיע
+30. DraftTask בלי duration → אין suggestion או מוצגת הודעה שאין מספיק נתונים
+31. שימוש בהצעה ואז עריכה ידנית — העריכה הידנית מנצחת
+32. שימוש בהצעה ואז "בטל הכל" — לא נשמר DB
+33. שימוש בהצעה ואז "שמור לטיוטות" — duration המעודכן נשמר בטיוטה
+
+פלט סופי:
+החזר דוח בעברית במבנה הבא:
+
+# דוח Sprint Pack 3ד+1 - Use Duration Suggestion for Drafts
+
+## 1. מה נבדק לפני שינוי
+טבלה:
+קובץ | למה נבדק | מסקנה
+
+## 2. החלטה ארכיטקטונית
+כתוב:
+- איך מזהים draft mode מול user_task mode
+- איפה נבנה DurationSuggestionPanel
+- למה הכפתור פעיל רק בטיוטות
+- איך נמנעה שמירה אוטומטית ל-DB
+- איך Preview מחושב מחדש
+
+## 3. מה שונה
+טבלה:
+קובץ | שינוי | למה
+
+## 4. מה גובה
+טבלה:
+קובץ מקורי | קובץ גיבוי
+
+## 5. איך "השתמש בהצעה" עובד
+כתוב:
+durationSuggestion
+→ click
+→ updateDraftTask
+→ re-schedule preview
+→ commit only on approve
+
+## 6. איך נשמרה ההבחנה בין טיוטה למשימה אמיתית
+כתוב:
+DraftTask זמנית
+UserTask אמיתית
+אין שינוי ל-DB עד אישור
+
+## 7. דוגמת DraftTask לפני ואחרי
+הצג:
+duration לפני
+suggestedDuration
+duration אחרי
+
+## 8. דוגמת UserTask שנוצרה אחרי אישור
+הצג שה-duration המעודכן נשמר.
+
+## 9. תוצאות build
+עבר / נכשל
+
+## 10. תוצאות API
+טבלה:
+בדיקה | תוצאה | הערה
+
+## 11. תוצאות UI
+טבלה:
+פעולה | תוצאה | הערה
+
+## 12. בדיקות Trust QA
+רשום:
+- לא שומר בלי אישור
+- לא משנה UserTask קיים
+- DraftTask לא מקבל learningBoost
+- DurationSuggestion לא מופיע מזיכרון שקרי
+- No Past עדיין עובד
+- Anchor Context עדיין עובד
+
+## 13. בדיקות שלא נשברו
+רשום:
+- planner/schedule
+- planner/apply-schedule
+- planner/commit-draft-schedule
+- planner/parse
+- learning/events
+- learning/daily-summary
+- learning/planning-context
+- learning/duration-suggestions
+- PlanningDraftPanel
+- PlanMyDayButton
+- Preview
+- אישור ושמירה
+- Drag & Drop
+- DayView
+- syncTasksFromServer
+- localStorage migration
+
+## 14. דברים שלא שונו בכוונה
+רשום:
+- לא נוסף Auth
+- לא נוסף Google Calendar
+- לא נוסף Qdrant
+- לא נוסף AI
+- לא נוסף dashboard
+- לא שונה schedulePlanner עמוק
+- לא שונה priorityScoreEngine
+- לא שונה durationIntelligenceService אלא אם היה תיקון קטן
+- לא שונה planningLearningContextService
+- לא שונה planningTimeGuardService
+- לא שונה planningAnchorContextService
+
+## 15. סיכונים שנשארו
+רשום:
+- UserTask קיים עדיין לא ניתן לעדכן duration מתוך ההצעה
+- אין עדיין reschedule אוטומטי אחרי שינוי duration למשימה קיימת
+- אין עדיין קטגוריות משימה חכמות
+- title matching שמרני
+- sampleSize נמוך בתחילת שימוש
+
+## 16. האם Sprint Pack 3ד+1 סגור
+כן / לא
+
+## 17. השלב הבא
+אם נסגר:
+Sprint Pack 3ה - Trust + QA Pack:
+בדיקות אמון מלאות לתרחישים אמיתיים:
+לא לשבץ בעבר, לא להמציא learningBoost, לא לתת durationSuggestion שקרי, לא לשנות DB בלי אישור, ולהציג שעות מקומיות בצורה ברורה.

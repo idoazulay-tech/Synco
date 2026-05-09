@@ -32,7 +32,6 @@ import {
   AnchorContextSummary,
 } from '@/lib/api/plannerClient';
 import { hasMissingDates, draftsForDate } from '@/lib/adapters/planningDraftToPlannerTask';
-import { DurationSuggestionPanel } from './DurationSuggestionPanel';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -68,13 +67,7 @@ function formatDuration(min: number) {
 }
 
 // ── Sub-component: one preview task card in the schedule ──────────────────────
-function DraftScheduledCard({
-  t,
-  onUseSuggestion,
-}: {
-  t: ScheduledTaskPreview;
-  onUseSuggestion?: (draftId: string, suggested: number) => void;
-}) {
+function DraftScheduledCard({ t }: { t: ScheduledTaskPreview }) {
   const [expanded, setExpanded] = useState(false);
   const level = t.priorityLevel ?? 'medium';
   const contextReasons = t.schedulingContextReasons ?? [];
@@ -136,19 +129,6 @@ function DraftScheduledCard({
           )}
         </div>
       )}
-
-      {/* Stage 3ד+1: Duration suggestion — draft_editable mode */}
-      {t.durationSuggestion && (
-        <DurationSuggestionPanel
-          suggestion={t.durationSuggestion}
-          mode={onUseSuggestion ? 'draft_editable' : 'read_only'}
-          onUseSuggestion={
-            onUseSuggestion && t.durationSuggestion.suggestedDurationMinutes >= 1
-              ? () => onUseSuggestion(t.id, t.durationSuggestion!.suggestedDurationMinutes)
-              : undefined
-          }
-        />
-      )}
     </div>
   );
 }
@@ -176,7 +156,6 @@ export function PlanningDraftPanel({ onDone, onParseText, isParsing }: Props) {
   const [loadingPreview, setLoadingPreview]   = useState(false);
   const [applying, setApplying]               = useState(false);
   const [applyError, setApplyError]           = useState<string | null>(null);
-  const [reScheduling, setReScheduling]       = useState(false);
 
   const today = format(new Date(), 'yyyy-MM-dd');
 
@@ -293,39 +272,6 @@ export function PlanningDraftPanel({ onDone, onParseText, isParsing }: Props) {
       toast({ title: 'שגיאה בתכנון', description: e.message ?? 'נסה שוב', variant: 'destructive' });
     } finally {
       setLoadingPreview(false);
-    }
-  };
-
-  // ── Stage 3ד+1: Use duration suggestion for a draft task ────────────────────
-  const handleUseSuggestion = async (draftId: string, suggestedDurationMinutes: number) => {
-    if (!preview) return;
-    const dateIso = preview.date;
-
-    // Update the store first (synchronous Zustand set)
-    updateDraftTask(draftId, { durationMinutes: suggestedDurationMinutes });
-
-    toast({ title: 'משך המשימה עודכן לפי ההצעה של סינקו' });
-
-    // Build updated drafts manually to avoid waiting for next render
-    const updatedDrafts = draftTasks.map(d =>
-      d.id === draftId ? { ...d, durationMinutes: suggestedDurationMinutes } : d
-    );
-    const todayDrafts = draftsForDate(updatedDrafts, dateIso);
-    if (todayDrafts.length === 0) return;
-
-    setReScheduling(true);
-    setApplyError(null);
-    try {
-      const result = await scheduleDraftTasksPreview(dateIso, todayDrafts);
-      setPreview(result);
-    } catch (e: any) {
-      toast({
-        title: 'שגיאה בחישוב מחדש של הסידור',
-        description: 'המשך עודכן, אך לא ניתן לחשב מחדש — נסה לתכנן שוב',
-        variant: 'destructive',
-      });
-    } finally {
-      setReScheduling(false);
     }
   };
 
@@ -677,14 +623,6 @@ export function PlanningDraftPanel({ onDone, onParseText, isParsing }: Props) {
                 </div>
               )}
 
-              {/* Stage 3ד+1: re-scheduling indicator */}
-              {reScheduling && (
-                <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-700 dark:text-amber-300">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-                  <span>מחשב מחדש את הסידור עם המשך החדש...</span>
-                </div>
-              )}
-
               {/* Scheduled tasks */}
               {preview.scheduledTasks.length > 0 ? (
                 <div className="space-y-2">
@@ -692,7 +630,7 @@ export function PlanningDraftPanel({ onDone, onParseText, isParsing }: Props) {
                     {preview.scheduledTasks.length} משימות שובצו:
                   </p>
                   {preview.scheduledTasks.map(t => (
-                    <DraftScheduledCard key={t.id} t={t} onUseSuggestion={handleUseSuggestion} />
+                    <DraftScheduledCard key={t.id} t={t} />
                   ))}
                 </div>
               ) : (
