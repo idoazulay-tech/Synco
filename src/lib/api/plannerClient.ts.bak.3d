@@ -3,26 +3,6 @@ import { PlanningDraftTask, CommitDraftSchedulePayload, CommitDraftScheduleRespo
 import { draftTaskToPlannerPayload } from '@/lib/adapters/planningDraftToPlannerTask';
 
 export type PriorityLevel = 'low' | 'medium' | 'high' | 'critical';
-export type DurationConfidence = 'low' | 'medium' | 'high';
-
-/** Stage 3ד: הצעת משך זמן מבוססת היסטוריית ביצוע */
-export interface DurationSuggestion {
-  currentDurationMinutes: number;
-  suggestedDurationMinutes: number;
-  confidence: DurationConfidence;
-  sampleSize: number;
-  averageActualDurationMinutes: number;
-  averageDeltaMinutes: number;
-  reason: string;
-}
-
-/** Stage 3ד: סיכום הצעות משך ברמת השיבוץ */
-export interface DurationSuggestionSummary {
-  enabled: boolean;
-  lookbackDays: number;
-  suggestionCount: number;
-  warnings: string[];
-}
 
 export interface ScheduledTaskPreview {
   id: string;
@@ -40,8 +20,6 @@ export interface ScheduledTaskPreview {
   schedulingContextReasons?: string[];
   reason: string;
   confidence: number;
-  /** Stage 3ד: הצעת משך זמן (null אם אין היסטוריה או אין פער משמעותי) */
-  durationSuggestion?: DurationSuggestion | null;
 }
 
 export interface LearningContextSummary {
@@ -91,8 +69,6 @@ export interface SchedulePreviewResponse {
   /** Stage 3ב.1 */
   nowContextSummary?: NowContextSummary | null;
   anchorContextSummary?: AnchorContextSummary | null;
-  /** Stage 3ד */
-  durationSuggestionSummary?: DurationSuggestionSummary | null;
 }
 
 export interface ApplyScheduleResponse {

@@ -1,0 +1,441 @@
+Sprint Pack 3ד בפרויקט Synco:
+Duration Intelligence בסיסי + Duration Suggestions + Execution Start Expiry Guard
+
+מטרה:
+להשתמש בזמני ביצוע אמיתיים שנשמרים ב-LearningEvents מסוג task_execution_completed כדי להציע למשתמש משך זמן משופר למשימות דומות.
+
+חשוב:
+לא לשנות אוטומטית את duration של משימה.
+לא לשנות אוטומטית את השיבוץ.
+לא להשתמש ב-AI.
+לא להשתמש ב-Qdrant.
+לא להוסיף Google Calendar.
+לא להוסיף Auth.
+לא לשנות schedulePlanner עמוק.
+לא לשבור planner/schedule.
+לא לשבור planner/apply-schedule.
+לא לשבור planner/commit-draft-schedule.
+לא לשבור PlanningDraftPanel.
+לא לשבור Preview.
+לא לשבור DayView.
+לא לשבור Drag & Drop.
+לא לשבור syncTasksFromServer.
+לא לשבור localStorage migration.
+
+הרעיון:
+אם המשתמש הגדיר משימה ל-20 דקות,
+אבל בפועל משימות דומות לוקחות לו בממוצע 45 דקות,
+סינקו לא ישנה לבד.
+הוא רק יציג:
+"משימות דומות לקחו לך בממוצע 45 דקות. רוצה לעדכן את המשך?"
+
+חלק 1: בדיקה לפני שינוי
+
+בדוק את הקבצים:
+- server/services/executionTrackingService.ts
+- server/services/learningSummaryService.ts
+- server/services/planningLearningContextService.ts
+- server/routes/planner.ts
+- server/routes/learning.ts
+- src/store/taskStore.ts
+- src/store/planningDraftStore.ts
+- src/components/planner/PlanningDraftPanel.tsx
+- src/components/planner/EditDraftTaskDialog.tsx
+- src/components/planner/PlanMyDayButton.tsx
+- src/lib/api/plannerClient.ts
+- src/lib/api/learningClient.ts
+- src/types/task.ts
+- src/types/planningDraft.ts
+- prisma/schema.prisma
+
+גבה כל קובץ שאתה משנה.
+
+עצור ודווח אם:
+- build נכשל
+- migration נכשל
+- planner/schedule נשבר
+- commit-draft-schedule נשבר
+- DayView נשבר
+- שינוי אחד גורם לשרשרת תיקונים רחבה מדי
+
+חלק 2: Duration Intelligence Service
+
+צור שירות חדש:
+
+server/services/durationIntelligenceService.ts
+
+השירות ייצא פונקציה:
+
+buildDurationSuggestionContext(userId: string, tasks: any[], options?: {
+  lookbackDays?: number,
+  dateIso?: string
+})
+
+הפונקציה תחזיר:
+
+{
+  enabled: true,
+  lookbackDays: 14,
+  suggestions: [
+    {
+      taskId: "task-id-or-draft-id",
+      title: "שם המשימה",
+      currentDurationMinutes: 20,
+      suggestedDurationMinutes: 45,
+      confidence: "low" | "medium" | "high",
+      sampleSize: 3,
+      averageActualDurationMinutes: 45,
+      averageDeltaMinutes: 25,
+      reason: "משימות דומות לקחו לך בפועל יותר זמן מהמתוכנן"
+    }
+  ],
+  warnings: []
+}
+
+כללים:
+1. lookbackDays ברירת מחדל: 14.
+2. קוראים LearningEvents מסוג task_execution_completed.
+3. משתמשים רק באירועים שיש להם metadata.actualDurationMinutes.
+4. מתעלמים מ-source:
+   - test
+   - seed
+   - debug
+   - manual_test
+
+5. התאמת משימות:
+   שלב ראשון פשוט ובטוח:
+   - אם taskId זהה למשימה קיימת, התאמה חזקה.
+   - אם אין taskId זהה, אפשר התאמת כותרת בסיסית רק אם יש דמיון גבוה מאוד.
+   - כדי למנוע זיכרון שקרי, title matching חייב להיות conservative.
+   - אם אין ודאות, לא מציעים suggestion.
+
+6. התאמת כותרת בטוחה:
+   אפשר להשתמש בפונקציה פשוטה:
+   normalizeTitle(title)
+   remove common words בעברית כמו:
+   את, של, עם, על, לפני, אחרי, ל, ב, ה
+   ואז להשוות מילים משמעותיות.
+   חובה לפחות 2 מילים משמעותיות משותפות או התאמה כמעט מלאה.
+   אם אין מספיק מילים משותפות, אין suggestion.
+
+7. confidence:
+   - sampleSize >= 5 → high
+   - sampleSize 3-4 → medium
+   - sampleSize 1-2 → low
+
+8. לא להציע שינוי אם:
+   - currentDurationMinutes חסר
+   - suggestedDurationMinutes קטן מ-1
+   - הפער קטן מ-5 דקות
+   - sampleSize = 0
+
+9. suggestedDurationMinutes:
+   עיגול ל-5 דקות הקרובות.
+   לדוגמה:
+   43 → 45
+   47 → 45 או 50 לפי פונקציה עקבית.
+
+10. לא כותבים שום דבר ל-DB בשירות הזה.
+הוא read-only בלבד.
+
+חלק 3: endpoint בדיקה
+
+בתוך server/routes/learning.ts או route מתאים אחר, הוסף endpoint:
+
+GET /api/learning/duration-suggestions?userId=default-user&date=2026-05-09
+
+הוא יחזיר context כללי לפי events אחרונים.
+
+אם אין tasks בקלט, אפשר להחזיר:
+{
+  ok: true,
+  context: {
+    enabled: true,
+    lookbackDays: 14,
+    suggestions: [],
+    warnings: []
+  }
+}
+
+אם נוח יותר לקבל tasks ב-POST, הוסף:
+
+POST /api/learning/duration-suggestions
+
+body:
+{
+  userId,
+  dateIso,
+  tasks
+}
+
+עדיף POST כי צריך לבדוק מול משימות קיימות או טיוטות.
+
+חלק 4: שילוב ב-planner/schedule
+
+ב-POST /api/planner/schedule:
+
+1. אחרי rawTasks ולפני response:
+   בנה durationSuggestionContext:
+   buildDurationSuggestionContext(userId, rawTasks, { dateIso })
+
+2. אל תשנה duration בפועל.
+3. אל תשנה את השיבוץ אוטומטית לפי ה-suggestion בשלב הזה.
+4. רק הוסף ל-response:
+   durationSuggestionSummary:
+   {
+     enabled: true,
+     lookbackDays: 14,
+     suggestionCount: N,
+     warnings: [...]
+   }
+
+5. בכל scheduledTask הוסף אם קיים:
+   durationSuggestion:
+   {
+     currentDurationMinutes,
+     suggestedDurationMinutes,
+     confidence,
+     sampleSize,
+     averageActualDurationMinutes,
+     averageDeltaMinutes,
+     reason
+   }
+
+חשוב:
+אם duration service נכשל, schedule עדיין חייב לעבוד.
+הוסף warning:
+"לא ניתן היה לחשב הצעות משך כרגע"
+
+חלק 5: UI ב-Preview
+
+עדכן:
+src/lib/api/plannerClient.ts
+
+הוסף טיפוסים:
+- DurationSuggestion
+- durationSuggestion?
+- durationSuggestionSummary?
+
+עדכן:
+src/components/planner/PlanMyDayButton.tsx
+
+בכרטיס משימה ב-Preview:
+אם קיימת durationSuggestion, הצג אזור קטן:
+
+"סינקו למד על משך דומה:"
+"משך נוכחי: 20 דק׳"
+"הצעה: 45 דק׳"
+"סיבה: משימות דומות לקחו לך בפועל יותר זמן"
+"כמות דוגמאות: 3"
+"רמת ביטחון: בינונית"
+
+כפתור קטן:
+"השתמש בהצעה"
+
+בשלב הזה:
+אם זו משימה קיימת ב-Preview רגיל:
+- אל תשנה DB.
+- אל תשנה שיבוץ.
+- רק עדכן local preview state אם קל ובטוח.
+- אם לא קל, השאר הכפתור disabled או הצג "יעודכן בשלב הבא".
+עדיפות: אל תוסיף כפתור אם זה מסבך.
+
+חלק 6: UI ב-PlanningDraftPanel
+
+עדכן:
+src/components/planner/PlanningDraftPanel.tsx
+או EditDraftTaskDialog אם יותר נכון.
+
+כאשר יש draft task עם durationMinutes:
+אפשר להציג durationSuggestion אחרי "תכנן משימות", בתוך ה-Preview בלבד.
+לא חייב להציג בזמן עריכה.
+
+אם המשתמש לוחץ "השתמש בהצעה" עבור DraftTask:
+מותר לעדכן רק את draft duration ב-store, כי זה עדיין לא UserTask אמיתי.
+זה בטוח.
+
+אבל אם זה מסבך את ה-flow:
+אל תבנה כפתור עכשיו.
+רק הצג את ההמלצה.
+
+חלק 7: Execution Start Expiry Guard קטן
+
+ב-src/store/taskStore.ts:
+
+הוסף ניקוי עדין ל-executionStartTimes ישנים.
+
+כלל:
+אם executionStartTime ישן יותר מ-24 שעות:
+- אל תשתמש בו לחישוב actualDurationMinutes.
+- מחק אותו מה-store.
+- כאשר completeTask קורה אחרי expiration, fallback להתנהגות הקיימת.
+- הוסף metadata:
+  actualStartSource: "expired_execution_start_fallback"
+
+מטרה:
+למנוע מצב שמשתמש התחיל משימה לפני שבוע ולא סיים, ואז duration יוצא לא הגיוני.
+
+אל תבנה UI חדש לזה.
+
+חלק 8: בדיקות חובה
+
+Build:
+1. npm run build
+
+API:
+2. GET /api/health
+3. POST /api/learning/events עם task_execution_completed שיש בו actualDurationMinutes
+4. POST /api/learning/duration-suggestions עם task דומה
+5. ודא שמוחזרת suggestion
+6. POST /api/planner/schedule עם משימה דומה
+7. ודא ש-scheduledTask כולל durationSuggestion
+8. ודא שה-duration המקורי לא השתנה
+9. ודא שהשיבוץ לא השתנה אוטומטית בגלל ההצעה
+10. planner/apply-schedule עדיין עובד
+11. planner/commit-draft-schedule עדיין עובד
+12. planner/parse עדיין עובד
+13. learning/daily-summary עדיין עובד
+14. learning/planning-context עדיין עובד
+
+UI:
+15. Preview מציג durationSuggestion
+16. PlanningDraftPanel לא נשבר
+17. Draft Preview לא מקבל שינוי אוטומטי
+18. אישור ושמירה עדיין עובד
+19. DayView עדיין נטען
+20. Drag & Drop עדיין עובד
+21. syncTasksFromServer עדיין עובד
+22. localStorage migration לא נשברה
+
+Execution expiry:
+23. צור executionStartTime ישן מ-24 שעות
+24. השלם משימה
+25. ודא שלא מחושב duration ענק
+26. ודא שה-entry הישן נמחק
+27. ודא metadata actualStartSource = expired_execution_start_fallback
+
+False memory safety:
+28. משימה חדשה בלי execution history לא מקבלת durationSuggestion.
+29. title match חלש לא נותן suggestion.
+30. source=test לא משפיע.
+31. sampleSize קטן מקבל confidence low.
+
+פלט סופי:
+החזר דוח בעברית במבנה הבא:
+
+# דוח Sprint Pack 3ד - Duration Intelligence בסיסי
+
+## 1. מה נבדק לפני שינוי
+טבלה:
+קובץ | למה נבדק | מסקנה
+
+## 2. החלטה ארכיטקטונית
+כתוב:
+- איפה נבנה durationIntelligenceService
+- למה הוא read-only
+- איך נמנעה השפעה אוטומטית על השיבוץ
+- איך נשמרה בטיחות מול זיכרון שקרי
+- איך נוסף expiry guard ל-executionStartTimes
+
+## 3. מה שונה
+טבלה:
+קובץ | שינוי | למה
+
+## 4. מה גובה
+טבלה:
+קובץ מקורי | קובץ גיבוי
+
+## 5. איך Duration Suggestion מחושב
+הסבר:
+- task_execution_completed
+- actualDurationMinutes
+- sampleSize
+- averageActualDurationMinutes
+- suggestedDurationMinutes
+- confidence
+- reason
+
+## 6. איך זה משתלב בשיבוץ
+כתוב:
+rawTasks
+→ durationSuggestionContext
+→ planner/schedule
+→ scheduledTasks עם durationSuggestion
+→ ללא שינוי אוטומטי
+
+## 7. איך זה מוצג ב-Preview
+כתוב מה המשתמש רואה.
+
+## 8. איך עובד Execution Start Expiry Guard
+כתוב:
+24 שעות
+→ לא משתמשים ב-start ישן
+→ fallback בטוח
+→ ניקוי מה-store
+
+## 9. דוגמת durationSuggestion אמיתית
+הצג JSON אמיתי.
+
+## 10. דוגמת scheduledTask עם durationSuggestion
+הצג JSON אמיתי.
+
+## 11. תוצאות build
+עבר / נכשל
+
+## 12. תוצאות API
+טבלה:
+בדיקה | תוצאה | הערה
+
+## 13. תוצאות UI
+טבלה:
+פעולה | תוצאה | הערה
+
+## 14. בדיקות שלא נשברו
+רשום:
+- planner/schedule
+- planner/apply-schedule
+- planner/commit-draft-schedule
+- planner/parse
+- learning/events
+- learning/daily-summary
+- learning/planning-context
+- PlanningDraftPanel
+- Preview
+- אישור ושמירה
+- Drag & Drop
+- DayView
+- syncTasksFromServer
+- localStorage migration
+
+## 15. דברים שלא שונו בכוונה
+רשום:
+- לא נוסף Auth
+- לא נוסף Google Calendar
+- לא נוסף Qdrant
+- לא נוסף AI
+- לא נוסף dashboard
+- לא שונה schedulePlanner עמוק
+- לא שונה priorityScoreEngine
+- לא שונה planningLearningContextService
+- לא שונה planningTimeGuardService
+- לא שונה planningAnchorContextService
+- לא שונה recurringEngine
+- לא שונה hebrewDateParser
+
+## 16. סיכונים שנשארו
+רשום:
+- userId עדיין default-user
+- title matching עדיין בסיסי ושמרני
+- אין עדיין קטגוריות משימה חכמות
+- אין עדיין שינוי אוטומטי של duration
+- אין עדיין הצעת reschedule אחרי שינוי duration
+- אין עדיין cross-device execution start
+
+## 17. האם Sprint Pack 3ד סגור
+כן / לא
+
+## 18. השלב הבא
+אם נסגר:
+Sprint Pack 3ה - Trust + QA Pack:
+בדיקות אמון מלאות לתרחישים אמיתיים:
+לא לשבץ בעבר, לא להמציא זיכרון, לא לתת durationSuggestion שקרי, לא לשנות בלי אישור, ולהציג שעות מקומיות ברור.

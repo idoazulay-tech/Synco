@@ -294,36 +294,12 @@ export const useTaskStore = create<TaskState>()(
           });
 
           // task_execution_completed — additional depth layer
-          // Stage 3ג.1 Expiry Guard: executionStartTime older than 24h → treat as expired
-          const EXECUTION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
-          const rawPersistedStart = get().executionStartTimes[resolvedId] ?? null;
-          let persistedStartTime: string | null = null;
-          let isExpired = false;
-
-          if (rawPersistedStart) {
-            const startMs = new Date(rawPersistedStart).getTime();
-            const ageMs   = now.getTime() - startMs;
-            if (ageMs > EXECUTION_EXPIRY_MS) {
-              isExpired = true;
-              // clean up expired entry immediately
-              set((state) => {
-                const cleaned = { ...state.executionStartTimes };
-                delete cleaned[resolvedId];
-                return { executionStartTimes: cleaned };
-              });
-            } else {
-              persistedStartTime = rawPersistedStart;
-            }
-          }
-
+          const persistedStartTime = get().executionStartTimes[resolvedId] ?? null;
           const actualStartTimeIso: string | null =
             persistedStartTime ?? (task.startTime ? task.startTime.toISOString() : null);
-
-          const actualStartSource = isExpired
-            ? 'expired_execution_start_fallback'
-            : persistedStartTime
-              ? 'execution_start'
-              : 'planned_fallback';
+          const actualStartSource = persistedStartTime
+            ? 'execution_start'
+            : 'planned_fallback';
 
           const plannedDurationMinutes = task.duration ?? null;
 

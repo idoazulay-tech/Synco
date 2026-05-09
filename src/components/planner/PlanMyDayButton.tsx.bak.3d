@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { Sparkles, CheckCircle2, Clock, AlertCircle, ChevronDown, ChevronUp, Brain, TrendingUp, Anchor, Timer } from 'lucide-react';
+import { Sparkles, CheckCircle2, Clock, AlertCircle, ChevronDown, ChevronUp, Brain, TrendingUp, Anchor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,7 +17,6 @@ import {
   ScheduledTaskPreview,
   PriorityLevel,
   AnchorContextSummary,
-  DurationSuggestion,
 } from '@/lib/api/plannerClient';
 
 interface Props {
@@ -50,33 +49,6 @@ const levelLabel: Record<PriorityLevel, string> = {
   medium:   'בינוני',
   low:      'נמוך',
 };
-
-const confidenceLabel: Record<string, string> = {
-  high:   'גבוהה',
-  medium: 'בינונית',
-  low:    'נמוכה',
-};
-
-// ── Stage 3ד: Duration suggestion mini-panel ──────────────────────────────────
-function DurationSuggestionPanel({ s }: { s: DurationSuggestion }) {
-  return (
-    <div
-      className="mt-1.5 pt-1.5 border-t border-amber-200 dark:border-amber-800 flex flex-col gap-1"
-      data-testid="section-duration-suggestion"
-    >
-      <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
-        <Timer className="w-3 h-3" />
-        סינקו למד על משך דומה:
-      </p>
-      <div className="flex flex-col gap-0.5 text-[11px] text-amber-700 dark:text-amber-300">
-        <span>משך נוכחי: <strong>{s.currentDurationMinutes} דק׳</strong></span>
-        <span>הצעה: <strong>{s.suggestedDurationMinutes} דק׳</strong></span>
-        <span>סיבה: {s.reason}</span>
-        <span>כמות דוגמאות: {s.sampleSize} · רמת ביטחון: {confidenceLabel[s.confidence] ?? s.confidence}</span>
-      </div>
-    </div>
-  );
-}
 
 // ── Sub-component: one scheduled task card ────────────────────────────────────
 function ScheduledTaskCard({ t }: { t: ScheduledTaskPreview }) {
@@ -191,11 +163,6 @@ function ScheduledTaskCard({ t }: { t: ScheduledTaskPreview }) {
             </>
           )}
         </div>
-      )}
-
-      {/* Stage 3ד: Duration suggestion — always visible if present (not inside expand) */}
-      {t.durationSuggestion && (
-        <DurationSuggestionPanel s={t.durationSuggestion} />
       )}
     </div>
   );

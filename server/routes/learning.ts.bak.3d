@@ -5,7 +5,6 @@ import { LearningEngine, getLearningStore } from '../layers/learning/index.js';
 import { prisma } from '../lib/prisma.js';
 import { buildDailyLearningSummary } from '../services/learningSummaryService.js';
 import { buildPlanningLearningContext } from '../services/planningLearningContextService.js';
-import { buildDurationSuggestionContext } from '../services/durationIntelligenceService.js';
 
 const router = Router();
 
@@ -301,37 +300,6 @@ router.get('/daily-summary', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('GET /api/learning/daily-summary error:', error);
     res.status(500).json({ ok: false, error: 'Failed to build daily summary' });
-  }
-});
-
-// POST /api/learning/duration-suggestions — Stage 3ד Duration Intelligence
-router.post('/duration-suggestions', async (req: Request, res: Response) => {
-  try {
-    const { userId = 'default-user', dateIso, tasks = [] } = req.body;
-
-    const context = await buildDurationSuggestionContext(userId, tasks, {
-      lookbackDays: 14,
-      dateIso,
-    });
-
-    res.json({ ok: true, context });
-  } catch (error: any) {
-    console.error('POST /api/learning/duration-suggestions error:', error);
-    res.status(500).json({ ok: false, error: 'Failed to build duration suggestions' });
-  }
-});
-
-// GET /api/learning/duration-suggestions — Stage 3ד (query-string version, tasks=[])
-router.get('/duration-suggestions', async (req: Request, res: Response) => {
-  try {
-    const userId  = (req.query.userId as string) || 'default-user';
-    const dateIso = req.query.date as string | undefined;
-
-    const context = await buildDurationSuggestionContext(userId, [], { lookbackDays: 14, dateIso });
-    res.json({ ok: true, context });
-  } catch (error: any) {
-    console.error('GET /api/learning/duration-suggestions error:', error);
-    res.status(500).json({ ok: false, error: 'Failed to build duration suggestions' });
   }
 });
 

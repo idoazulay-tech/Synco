@@ -7,8 +7,6 @@ import type { ScheduleConfig } from '../layers/task/types/scheduleTypes.js';
 import { scoreAndSort } from '../layers/task/priority/priorityScoreEngine.js';
 import { buildPlanningLearningContext } from '../services/planningLearningContextService.js';
 import type { PlanningLearningContext } from '../services/planningLearningContextService.js';
-import { buildDurationSuggestionContext } from '../services/durationIntelligenceService.js';
-import type { DurationSuggestion } from '../services/durationIntelligenceService.js';
 // Stage 3ב.1: No Past guard
 import {
   buildNowContext,
@@ -155,24 +153,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
       learningWarnings.push('לא הצלחנו לטעון היסטוריית למידה — הסידור חושב ללא הקשר');
     }
 
-    // ── Stage 3ד: Duration suggestion context (fire-and-forget) ───────────────
-    let durationSuggCtx: Awaited<ReturnType<typeof buildDurationSuggestionContext>> | null = null;
-    const durationWarnings: string[] = [];
-    try {
-      durationSuggCtx = await buildDurationSuggestionContext(userId, validRawTasks, { dateIso });
-    } catch (dsErr: any) {
-      console.warn('[planner/schedule] durationSuggestions failed (silent):', dsErr?.message);
-      durationWarnings.push('לא ניתן היה לחשב הצעות משך כרגע');
-    }
-
-    // Build a lookup: taskId → DurationSuggestion
-    const durationSuggMap = new Map<string, DurationSuggestion>();
-    if (durationSuggCtx) {
-      for (const s of durationSuggCtx.suggestions) {
-        if (s.taskId) durationSuggMap.set(s.taskId, s);
-      }
-    }
-
     // ── Priority scoring: score + sort validRawTasks before adapter ────────────
     const scored = scoreAndSort(validRawTasks, { referenceDate: dateIso, learningContext: learningCtx });
 
@@ -228,9 +208,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
           nowContext.nowIso,
         );
 
-        // Stage 3ד: attach durationSuggestion if available for this task
-        const durationSugg = b.refId ? durationSuggMap.get(b.refId) ?? null : null;
-
         return {
           id: b.refId!,
           title: b.title,
@@ -246,18 +223,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
           schedulingContextReasons,
           reason: schedulingContextReasons[0] ?? 'שובץ בזמן פנוי מתאים',
           confidence: 0.8,
-          // Stage 3ד: duration suggestion (null if no history or no significant delta)
-          durationSuggestion: durationSugg
-            ? {
-                currentDurationMinutes:   durationSugg.currentDurationMinutes,
-                suggestedDurationMinutes: durationSugg.suggestedDurationMinutes,
-                confidence:               durationSugg.confidence,
-                sampleSize:               durationSugg.sampleSize,
-                averageActualDurationMinutes: durationSugg.averageActualDurationMinutes,
-                averageDeltaMinutes:      durationSugg.averageDeltaMinutes,
-                reason:                   durationSugg.reason,
-              }
-            : null,
         };
       });
 
@@ -291,7 +256,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
       ...(learningCtx?.warnings ?? []),
       ...noPastWarnings,
       ...anchorCtx.warnings,
-      ...durationWarnings,
     ];
 
     // Stage 3ב.1: summaries for client
@@ -336,15 +300,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
       // Stage 3ב.1
       nowContextSummary,
       anchorContextSummary,
-      // Stage 3ד: duration suggestion summary
-      durationSuggestionSummary: durationSuggCtx
-        ? {
-            enabled:         durationSuggCtx.enabled,
-            lookbackDays:    durationSuggCtx.lookbackDays,
-            suggestionCount: durationSuggCtx.suggestions.length,
-            warnings:        durationSuggCtx.warnings,
-          }
-        : null,
     });
   } catch (error: any) {
     console.error('POST /api/planner/schedule error:', error);
