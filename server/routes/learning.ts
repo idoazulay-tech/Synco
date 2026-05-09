@@ -185,6 +185,8 @@ const ALLOWED_EVENT_TYPES = new Set([
   'task_deleted',
   'schedule_applied',
   'task_updated',
+  'task_started',
+  'task_execution_completed',
 ]);
 
 // POST /api/learning/events — save a learning event to PostgreSQL

@@ -74,6 +74,15 @@ export async function getLearningEvents(
   }
 }
 
+export interface ExecutionStats {
+  trackedCompletedCount: number;
+  averagePlannedDurationMinutes: number | null;
+  averageActualDurationMinutes: number | null;
+  averageDeltaMinutes: number | null;
+  overranCount: number;
+  underranCount: number;
+}
+
 export interface DailySummaryResult {
   ok: boolean;
   userId: string;
@@ -89,6 +98,7 @@ export interface DailySummaryResult {
     mostMovedTasks: { taskId: string; title: string; rescheduleCount: number }[];
     taskIdsTouched: string[];
     notes: string[];
+    executionStats: ExecutionStats | null;
   };
 }
 

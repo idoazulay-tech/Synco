@@ -9,7 +9,9 @@ export interface LearningEventPayload {
     | 'task_rescheduled'
     | 'task_deleted'
     | 'schedule_applied'
-    | 'task_updated';
+    | 'task_updated'
+    | 'task_started'
+    | 'task_execution_completed';
   source?: string;
   dateIso?: string;
   taskTitleSnapshot?: string;
@@ -53,6 +55,62 @@ export function logLearningEvent(payload: LearningEventPayload): void {
     body: JSON.stringify(body),
   }).catch((e) => {
     console.warn('[learningClient] logLearningEvent failed (silent):', e);
+  });
+}
+
+/**
+ * מתעד שהמשתמש התחיל לבצע משימה — fire-and-forget.
+ */
+export function logTaskStarted(payload: {
+  taskId: string;
+  taskTitleSnapshot?: string;
+  dateIso?: string;
+  plannedDurationMinutes?: number | null;
+  plannedStartTime?: string | null;
+  actualStartTime: string;
+}): void {
+  logLearningEvent({
+    taskId: payload.taskId,
+    eventType: 'task_started',
+    source: 'timer',
+    taskTitleSnapshot: payload.taskTitleSnapshot,
+    dateIso: payload.dateIso,
+    metadata: {
+      plannedDurationMinutes: payload.plannedDurationMinutes ?? null,
+      plannedStartTime: payload.plannedStartTime ?? null,
+      actualStartTime: payload.actualStartTime,
+    },
+  });
+}
+
+/**
+ * מתעד השלמת ביצוע עם נתוני זמן מלאים — fire-and-forget.
+ */
+export function logTaskExecutionCompleted(payload: {
+  taskId: string;
+  taskTitleSnapshot?: string;
+  dateIso?: string;
+  plannedDurationMinutes?: number | null;
+  actualDurationMinutes?: number | null;
+  durationDeltaMinutes?: number | null;
+  plannedStartTime?: string | null;
+  actualStartTime?: string | null;
+  actualEndTime: string;
+}): void {
+  logLearningEvent({
+    taskId: payload.taskId,
+    eventType: 'task_execution_completed',
+    source: 'completeTask',
+    taskTitleSnapshot: payload.taskTitleSnapshot,
+    dateIso: payload.dateIso,
+    metadata: {
+      plannedDurationMinutes: payload.plannedDurationMinutes ?? null,
+      actualDurationMinutes: payload.actualDurationMinutes ?? null,
+      durationDeltaMinutes: payload.durationDeltaMinutes ?? null,
+      plannedStartTime: payload.plannedStartTime ?? null,
+      actualStartTime: payload.actualStartTime ?? null,
+      actualEndTime: payload.actualEndTime,
+    },
   });
 }
 
