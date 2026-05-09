@@ -197,19 +197,3 @@ model UserTask {
 
   @@index([userId, deletedAt])
 }
-
-model PlanningDraft {
-  id          String   @id @default(cuid())
-  userId      String
-  sessionId   String?
-  title       String
-  description String?
-  payload     Json
-  status      String   @default("draft")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([userId])
-  @@index([sessionId])
-  @@index([status])
-}

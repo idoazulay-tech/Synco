@@ -72,3 +72,8 @@ export type LearningEvent = Prisma.LearningEventModel
  * 
  */
 export type UserTask = Prisma.UserTaskModel
+/**
+ * Model PlanningDraft
+ * 
+ */
+export type PlanningDraft = Prisma.PlanningDraftModel

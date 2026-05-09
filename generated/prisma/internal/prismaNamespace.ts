@@ -394,7 +394,8 @@ export const ModelName = {
   BrainFlag: 'BrainFlag',
   OnboardingState: 'OnboardingState',
   LearningEvent: 'LearningEvent',
-  UserTask: 'UserTask'
+  UserTask: 'UserTask',
+  PlanningDraft: 'PlanningDraft'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -410,7 +411,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "taskFile" | "taskRun" | "runStep" | "insightLog" | "userSettings" | "regulationLog" | "userMetrics" | "brainFlag" | "onboardingState" | "learningEvent" | "userTask"
+    modelProps: "taskFile" | "taskRun" | "runStep" | "insightLog" | "userSettings" | "regulationLog" | "userMetrics" | "brainFlag" | "onboardingState" | "learningEvent" | "userTask" | "planningDraft"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1228,6 +1229,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    PlanningDraft: {
+      payload: Prisma.$PlanningDraftPayload<ExtArgs>
+      fields: Prisma.PlanningDraftFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.PlanningDraftFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PlanningDraftPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.PlanningDraftFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PlanningDraftPayload>
+        }
+        findFirst: {
+          args: Prisma.PlanningDraftFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PlanningDraftPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.PlanningDraftFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PlanningDraftPayload>
+        }
+        findMany: {
+          args: Prisma.PlanningDraftFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PlanningDraftPayload>[]
+        }
+        create: {
+          args: Prisma.PlanningDraftCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PlanningDraftPayload>
+        }
+        createMany: {
+          args: Prisma.PlanningDraftCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.PlanningDraftCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PlanningDraftPayload>[]
+        }
+        delete: {
+          args: Prisma.PlanningDraftDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PlanningDraftPayload>
+        }
+        update: {
+          args: Prisma.PlanningDraftUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PlanningDraftPayload>
+        }
+        deleteMany: {
+          args: Prisma.PlanningDraftDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.PlanningDraftUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.PlanningDraftUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PlanningDraftPayload>[]
+        }
+        upsert: {
+          args: Prisma.PlanningDraftUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PlanningDraftPayload>
+        }
+        aggregate: {
+          args: Prisma.PlanningDraftAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregatePlanningDraft>
+        }
+        groupBy: {
+          args: Prisma.PlanningDraftGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PlanningDraftGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.PlanningDraftCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PlanningDraftCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1443,6 +1518,21 @@ export const UserTaskScalarFieldEnum = {
 } as const
 
 export type UserTaskScalarFieldEnum = (typeof UserTaskScalarFieldEnum)[keyof typeof UserTaskScalarFieldEnum]
+
+
+export const PlanningDraftScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  sessionId: 'sessionId',
+  title: 'title',
+  description: 'description',
+  payload: 'payload',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PlanningDraftScalarFieldEnum = (typeof PlanningDraftScalarFieldEnum)[keyof typeof PlanningDraftScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -1751,6 +1841,7 @@ export type GlobalOmitConfig = {
   onboardingState?: Prisma.OnboardingStateOmit
   learningEvent?: Prisma.LearningEventOmit
   userTask?: Prisma.UserTaskOmit
+  planningDraft?: Prisma.PlanningDraftOmit
 }
 
 /* Types for Logging */

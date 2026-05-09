@@ -1,0 +1,598 @@
+שלב 2.5א בפרויקט Synco: Multi Input Planning Drafts עם תמיכה ב-Now-Aware + Anchor-Aware Scheduling.
+
+מטרה:
+לאפשר למשתמש להזין כמה משימות ברצף לפני אישור סופי:
+- הקלטה ראשונה
+- הקלטה נוספת
+- הקלדה נוספת
+- הוספת משימות לרשימת אישור קיימת
+- עריכת כל משימה לפני אישור
+- מחיקת משימה בודדת
+- ביטול כל הרשימה
+- שמירה לטיוטות
+- תכנון המשימות
+- Preview
+- אישור סופי ושמירה כ-UserTasks אמיתיות
+
+הבעיה הנוכחית:
+אחרי שהמשתמש מקליט או מקליד ונוצרה משימה לאישור, אין לו אפשרות להוסיף עוד קלט לאותה רשימת תכנון.
+זה לא מתאים להתנהגות אמיתית, כי משתמשים מוסיפים משימות בשלבים ונזכרים בעוד דברים לפני שהם רוצים לתכנן את היום.
+
+חשוב מאוד:
+אל תשנה את schedulePlanner עמוק.
+אל תשנה את buildSchedule.
+אל תשנה את priorityScoreEngine.
+אל תשנה את planningTimeGuardService.
+אל תשנה את planningAnchorContextService.
+אל תשנה את planningLearningContextService.
+אל תשנה את apply-schedule אלא אם אין ברירה.
+אל תשבור planner/schedule.
+אל תשבור planner/apply-schedule.
+אל תשבור Preview.
+אל תשבור אישור ושמירה.
+אל תשבור Drag & Drop.
+אל תשבור DayView.
+אל תשבור syncTasksFromServer.
+אל תשבור localStorage migration.
+אל תוסיף Auth.
+אל תוסיף Google Calendar.
+אל תוסיף Qdrant.
+אל תוסיף AI API חדש.
+אל תבנה dashboard רחב.
+אל תעשה refactor גדול.
+אל תחליף קבצים גדולים אם אפשר להוסיף קבצים קטנים ומבודדים.
+
+רקע חשוב:
+שלב 3ב.1 כבר הוסיף:
+- nowIso
+- userTimeZone
+- timezoneOffsetMinutes
+- No Past Scheduling
+- Anchor Context
+- schedulingContextReasons
+- מניעת learningBoost שקרי למשימה חדשה
+
+לכן כל שיבוץ של DraftTasks חייב להשתמש באותם נתונים:
+- nowIso
+- userTimeZone
+- timezoneOffsetMinutes
+
+לפני שינוי:
+בדוק את הקבצים הבאים:
+
+Frontend:
+- src/pages/AddTaskPage.tsx
+- src/pages/PriorityPlannerPage.tsx
+- src/components/task/HaMekolel.tsx
+- src/components/voice/VoiceInput.tsx
+- src/components/planner/PlanMyDayButton.tsx
+- src/lib/api/plannerClient.ts
+- src/store/taskStore.ts
+- src/types/task.ts
+- src/pages/DayViewPage.tsx
+- src/pages/TaskDetailPage.tsx
+- src/pages/EditTaskPage.tsx
+
+Backend:
+- server/routes/planner.ts
+- server/routes/user-tasks.ts
+- server/routes/learning.ts
+- server/services/planningTimeGuardService.ts
+- server/services/planningAnchorContextService.ts
+- server/services/planningLearningContextService.ts
+- prisma/schema.prisma
+- server/index.ts
+
+בדוק במיוחד:
+1. איפה כיום קלט אודיו הופך למשימה.
+2. איפה כיום קלט טקסט הופך למשימה.
+3. האם PriorityPlannerPage כבר מחזיק רשימת משימות לפני אישור.
+4. האם AddTaskPage יוצר משימה מיד או מחזיק preview.
+5. האם יש כבר StandbyTask / TaskTemplate / draft קיים.
+6. האם planner/schedule יכול לקבל body.tasks שלא קיימות ב-DB.
+7. האם apply-schedule מחייב IDs אמיתיים של UserTask.
+8. איך ליצור UserTasks אמיתיות מהטיוטות בצורה אטומית.
+9. איך להימנע מ-partial save.
+10. האם השעות שמוצגות למשתמש הן local time או UTC.
+
+גבה כל קובץ שאתה משנה.
+
+חלק 1: Type חדש ל-PlanningDraftTask
+
+צור קובץ:
+src/types/planningDraft.ts
+
+הגדר:
+
+PlanningDraftTask:
+- id
+- title
+- description?
+- dateIso?
+- startTime?
+- endTime?
+- durationMinutes?
+- priority: low | medium | high
+- flexibility: fixed | flexible | anytime
+- status: draft
+- source: voice | text | ai_parse | manual
+- rawInput?
+- category?
+- projectId?
+- recurrence?
+- notes?
+- createdAt
+- updatedAt
+
+הערה חשובה:
+PlanningDraftTask הוא לא UserTask.
+הוא לא אמור לקבל learningBoost.
+הוא לא אמור להיחשב כהיסטוריה אמיתית.
+הוא לא נשמר כמשימה אמיתית עד שהמשתמש מאשר.
+
+הוסף comments ברורים:
+PlanningDraftTask = משימה זמנית לפני אישור.
+UserTask = משימה אמיתית שנשמרה.
+ScheduledTaskPreview = הצעת שיבוץ בלבד.
+
+חלק 2: Store חדש
+
+צור:
+src/store/planningDraftStore.ts
+
+ה-store יכלול:
+- sessionId
+- draftTasks
+- createdAt
+- updatedAt
+- addDraftTasks(tasks)
+- updateDraftTask(id, patch)
+- removeDraftTask(id)
+- clearDraftTasks()
+- resetSession()
+- hasUnconfirmedDrafts()
+- markAllForToday(dateIso)
+- saveDraftsLocally()
+- loadDraftsLocally()
+
+אם מוסיפים DB drafts:
+- saveDraftsToServer()
+- loadDraftsFromServer()
+
+בשלב ראשון אפשר localStorage, אבל אם אפשר בלי סיכון עדיף DB-backed.
+אם בוחרים localStorage, כתוב בדוח שזה זמני.
+
+חלק 3: UI חדש לרשימת משימות לפני אישור
+
+צור:
+src/components/planner/PlanningDraftPanel.tsx
+
+הוא יציג:
+כותרת:
+"משימות לפני אישור"
+
+אזור הוספה:
+- כפתור "הקלט עוד"
+- שדה "הקלד עוד משימה"
+- כפתור "הוסף"
+
+רשימת DraftTasks:
+כל כרטיס יציג:
+- title
+- dateIso אם קיים
+- startTime/endTime אם קיים
+- durationMinutes
+- priority
+- flexibility
+- source
+- כפתור "ערוך"
+- כפתור "מחק"
+
+כפתורים תחת הרשימה:
+- "תכנן משימות"
+- "בטל הכל"
+
+חלק 4: עריכת DraftTask
+
+צור:
+src/components/planner/EditDraftTaskDialog.tsx
+
+אפשר לערוך:
+- title
+- description
+- dateIso
+- startTime
+- endTime
+- durationMinutes
+- priority
+- flexibility
+- category
+- projectId אם קיים
+- recurrence אם כבר נתמך
+- notes
+
+לא להשתמש ב-EditTaskPage אם זה מסוכן או קשור רק ל-UserTask אמיתי.
+
+חלק 5: ביטול הכל
+
+כאשר המשתמש לוחץ "בטל הכל":
+פתח Dialog:
+
+"המשימות עדיין לא נשמרו. מה לעשות?"
+
+כפתורים:
+- "מחק הכל"
+- "שמור לטיוטות"
+- "חזור"
+
+התנהגות:
+- מחק הכל: clearDraftTasks()
+- שמור לטיוטות: שמירה ל-localStorage או DB
+- חזור: סגירת ה-Dialog בלי שינוי
+
+חלק 6: האם כל המשימות להיום
+
+כאשר המשתמש לוחץ "תכנן משימות":
+
+בדוק:
+- האם לכל draftTask יש dateIso
+- האם כולן לאותו dateIso
+- האם יש משימות בלי dateIso
+
+אם כל המשימות בלי dateIso:
+הצג שאלה:
+
+"האם כל המשימות האלו מיועדות להיום?"
+
+כפתורים:
+- "כן, כולן להיום"
+- "לא, אבחר תאריך לכל משימה"
+- "חלק להיום וחלק לא"
+
+אם בוחר "כן":
+- קבע dateIso של היום לכל המשימות
+- שלח לתכנון
+
+אם בוחר "לא":
+- הדגש את שדה dateIso בכל משימה
+- אל תשלח לתכנון עד שכל משימה קיבלה תאריך
+
+אם בוחר "חלק":
+- אפשר עריכה לכל משימה
+- אל תשלח לתכנון עד שאין משימות בלי dateIso
+
+אם יש משימות להיום ויש משימות לתאריכים אחרים:
+- בשלב הזה תכנן רק את המשימות של היום
+- הצג הודעה:
+"כרגע סינקו יתכנן את המשימות של היום. המשימות לתאריכים אחרים יישארו בטיוטות."
+
+חלק 7: חיבור ל-planner/schedule
+
+הוסף ל-plannerClient:
+
+scheduleDraftTasksPreview(dateIso, draftTasks)
+
+היא חייבת לשלוח:
+- date
+- tasks
+- nowIso: new Date().toISOString()
+- timezoneOffsetMinutes: new Date().getTimezoneOffset()
+- userTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Jerusalem"
+
+אם צריך adapter:
+צור:
+src/lib/adapters/planningDraftToPlannerTask.ts
+
+חשוב:
+DraftTask IDs הם זמניים.
+אין להפעיל עליהם apply-schedule.
+אין לתת להם learningBoost.
+אין לתת להם history.
+
+אם planner/schedule מחזיר learningBoost ל-draft task, תקן כך ש-draft tasks יקבלו:
+learningBoost: 0
+learningReasons: []
+
+חלק 8: הצגת Preview
+
+אפשר להשתמש ב-Preview הקיים של PlanMyDayButton או ליצור wrapper.
+
+ב-Preview של DraftTasks יש להציג:
+- שעות מתוכננות
+- priorityScore
+- schedulingContextReasons
+- NowContext notice אם קיים
+- AnchorContext panel אם קיים
+
+חשוב:
+השעות ב-UI חייבות להיות מוצגות לפי זמן מקומי של המשתמש, לא UTC גולמי.
+אם server מחזיר startTime/endTime ב-UTC או בפורמט HH:MM UTC, client צריך להציג Local Time ברור.
+אם response כבר HH:MM מקומי, ודא בדיקה מפורשת.
+
+חלק 9: אישור Preview של DraftTasks
+
+אסור להפעיל apply-schedule על ids זמניים של DraftTasks.
+
+צריך ליצור UserTasks אמיתיות ורק אז לשמור את השיבוץ.
+
+הפתרון המועדף:
+צור endpoint חדש אטומי:
+
+POST /api/planner/commit-draft-schedule
+
+body:
+{
+  "userId": "default-user",
+  "date": "2026-05-08",
+  "draftTasks": [...],
+  "scheduledItems": [
+    {
+      "draftId": "...",
+      "startTime": "17:35",
+      "endTime": "17:45"
+    }
+  ],
+  "timezoneOffsetMinutes": -180,
+  "userTimeZone": "Asia/Jerusalem"
+}
+
+ה-endpoint יעשה transaction:
+1. validate userId/date/draftTasks/scheduledItems
+2. create UserTasks אמיתיות מה-draftTasks
+3. להתאים draftId ל-userTaskId אמיתי
+4. לשמור startTime/endTime לפי scheduledItems
+5. ליצור task_created learning events כמו שהמערכת עושה היום, או להשתמש באותו service כדי לא ליצור כפילות
+6. להחזיר:
+{
+  ok: true,
+  createdCount,
+  createdTasks,
+  draftToTaskMap
+}
+
+חשוב:
+אם יש שגיאה באמצע:
+- rollback מלא
+- לא להשאיר חצי משימות ב-DB
+
+אם קשה ליצור endpoint כזה בשלב הזה:
+עצור ודווח.
+אל תבצע partial save דרך כמה קריאות בלי transaction.
+
+חלק 10: DB drafts אופציונלי
+
+אם בוחרים DB-backed drafts, צור Prisma model:
+
+model PlanningDraft {
+  id          String   @id @default(cuid())
+  userId      String
+  sessionId   String?
+  title       String
+  description String?
+  payload     Json
+  status      String   @default("draft")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([status])
+}
+
+Routes:
+POST /api/planning-drafts
+GET /api/planning-drafts?userId=default-user
+DELETE /api/planning-drafts/:id
+
+אם זה גדול מדי:
+השתמש ב-localStorage זמני ודווח.
+
+חלק 11: איפה לחבר את המסך
+
+העדפה:
+חבר את PlanningDraftPanel ל-PriorityPlannerPage אם הוא כבר מיועד לקלט מרובה.
+אם AddTaskPage הוא המקום שבו נעשית הקלטה, אפשר לחבר שם.
+
+אל תשבור את AddTaskPage הקיים.
+אם צריך, הוסף כפתור:
+"פתח תכנון מרובה"
+
+או החלף רק את זרימת preview הפנימית אם זה בטוח.
+
+חלק 12: בדיקות חובה
+
+Build:
+1. npm run build
+
+API:
+2. GET /api/health
+3. POST /api/planner/schedule עם draft tasks
+4. POST /api/planner/commit-draft-schedule
+5. בדוק rollback במקרה ש-scheduledItems מכיל draftId לא קיים
+6. planner/apply-schedule עדיין עובד
+7. planner/parse עדיין עובד
+8. learning/events עדיין עובד
+9. learning/daily-summary עדיין עובד
+10. learning/planning-context עדיין עובד
+
+UI:
+11. קלט טקסט ראשון יוצר draft task
+12. קלט טקסט שני מוסיף לאותה רשימה ולא מוחק את הראשון
+13. הקלטה ראשונה יוצרת draft task
+14. הקלטה נוספת מוסיפה לרשימה ולא מאפסת
+15. עריכת draft task עובדת לכל הפרמטרים
+16. מחיקת draft task בודדת עובדת
+17. "בטל הכל" פותח Dialog
+18. "מחק הכל" מנקה את הרשימה
+19. "שמור לטיוטות" שומר
+20. "תכנן משימות" בלי dateIso שואל האם כולן להיום
+21. "כן, כולן להיום" מוסיף dateIso של היום
+22. "לא" לא מתכנן עד השלמת תאריכים
+23. planner/schedule מחזיר Preview
+24. Preview לא שומר בלי אישור
+25. אישור Preview יוצר UserTasks אמיתיות
+26. DayView מציג את המשימות החדשות בזמנים ששובצו
+27. משימות Draft לא מקבלות learningBoost שקרי
+28. משימות Draft כן מקבלות schedulingContextReasons אם יש anchor/prep
+29. No Past Scheduling עובד גם ב-Draft Preview
+30. Anchor Context עובד גם ב-Draft Preview
+31. שעות מוצגות ב-local time
+32. task_created נוצר עבור המשימות שאושרו
+33. Drag & Drop לא נשבר
+34. DayView לא נשבר
+35. syncTasksFromServer לא נשבר
+36. localStorage migration לא נשברה
+
+Edge cases:
+- קלט יוצר 0 משימות
+- קלט יוצר 5 משימות
+- שתי משימות עם אותו שם
+- משימה בלי משך
+- משימה בלי priority
+- משימה עם תאריך עתידי
+- חלק מהמשימות היום וחלק עתידיות
+- המשתמש לוחץ בטל ואז חוזר
+- המשתמש שומר לטיוטות ואז חוזר לדף
+- planner/schedule נכשל
+- commit-draft-schedule נכשל באמצע
+- draftId לא קיים ב-scheduledItems
+- scheduledItem בלי התאמה ל-draftTask
+- משימה prep בלי anchor
+- anchor בזמן עבר
+
+פלט סופי:
+החזר דוח בעברית במבנה הבא:
+
+# דוח שלב 2.5א - Multi Input Planning Drafts
+
+## 1. מה נבדק לפני שינוי
+טבלה:
+קובץ | למה נבדק | מסקנה
+
+## 2. החלטה ארכיטקטונית
+כתוב:
+- איפה נשמרות טיוטות
+- האם נוצר PlanningDraftTask type
+- האם נוצר planningDraftStore
+- האם נוצר DB model או localStorage זמני
+- איך DraftTask הופך ל-UserTask
+- איך נמנעה שמירה חלקית
+- איך נשמרה התאמה ל-Now/Anchor guards
+
+## 3. מה שונה
+טבלה:
+קובץ | שינוי | למה
+
+## 4. מה גובה
+טבלה:
+קובץ מקורי | קובץ גיבוי
+
+## 5. איך הזרימה החדשה עובדת
+כתוב:
+קלט ראשון
+→ draft task
+→ קלט נוסף
+→ append
+→ עריכה
+→ בדיקת האם להיום
+→ תכנן משימות
+→ Preview
+→ אישור
+→ UserTasks אמיתיות
+→ שיבוץ נשמר
+→ DayView
+
+## 6. איך בודקים האם כל המשימות להיום
+כתוב את הלוגיקה.
+
+## 7. איך עובד ביטול הכל
+כתוב:
+מחק הכל / שמור לטיוטות / חזור
+
+## 8. איך עובד מאגר הטיוטות
+כתוב האם DB או localStorage ואיך שולפים.
+
+## 9. איך עובד commit-draft-schedule
+כתוב:
+draftTasks
+→ transaction
+→ UserTasks
+→ startTime/endTime
+→ task_created events
+→ cleanup drafts
+
+## 10. איך נמנעה פגיעה בשלבים קיימים
+רשום:
+- No Past Scheduling
+- Anchor Context
+- False Learning Prevention
+- planner/schedule
+- planner/apply-schedule
+- priorityScore
+- learningBoost
+- learning/events
+- daily-summary
+- planning-context
+- Preview
+- אישור ושמירה
+- Drag & Drop
+
+## 11. תוצאות build ו-Prisma
+עבר / נכשל / לא נדרש
+
+## 12. תוצאות API
+טבלה:
+בדיקה | תוצאה | הערה
+
+## 13. תוצאות UI
+טבלה:
+פעולה | תוצאה | הערה
+
+## 14. תוצאות DB
+אם נוצר DB draft:
+הצג דוגמת רשומת draft.
+אם לא:
+כתוב שהטיוטות זמניות ולמה.
+הצג גם דוגמת UserTask שנוצרה מ-Draft.
+
+## 15. בדיקות שלא נשברו
+רשום:
+- DayView
+- Drag & Drop
+- planner/schedule
+- planner/apply-schedule
+- planner/parse
+- learning/events
+- learning/daily-summary
+- learning/planning-context
+- syncTasksFromServer
+- localStorage migration
+
+## 16. דברים שלא שונו בכוונה
+רשום:
+- לא נוסף Auth
+- לא נוסף Google Calendar
+- לא נוסף Qdrant
+- לא נוסף AI חדש
+- לא שונה schedulePlanner עמוק
+- לא שונה priorityScoreEngine
+- לא שונה planningTimeGuardService
+- לא שונה planningAnchorContextService
+- לא שונה recurringEngine
+- לא שונה hebrewDateParser
+
+## 17. סיכונים שנשארו
+רשום:
+- userId עדיין default-user
+- אם הטיוטות localStorage, הן זמניות
+- עדיין אין מסך טיוטות מלא
+- תאריכים עתידיים עדיין לא מתוכננים ביומן עתידי אם זה לא נבנה
+- אין עדיין חוויית mobile מלאה
+- אין עדיין Auth
+
+## 18. האם שלב 2.5א סגור
+כן / לא
+
+## 19. השלב הבא
+אם שלב 2.5א נסגר:
+חוזרים לשלב 3ג - Execution Time Tracking.

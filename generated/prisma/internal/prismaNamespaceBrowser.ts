@@ -61,7 +61,8 @@ export const ModelName = {
   BrainFlag: 'BrainFlag',
   OnboardingState: 'OnboardingState',
   LearningEvent: 'LearningEvent',
-  UserTask: 'UserTask'
+  UserTask: 'UserTask',
+  PlanningDraft: 'PlanningDraft'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -256,6 +257,21 @@ export const UserTaskScalarFieldEnum = {
 } as const
 
 export type UserTaskScalarFieldEnum = (typeof UserTaskScalarFieldEnum)[keyof typeof UserTaskScalarFieldEnum]
+
+
+export const PlanningDraftScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  sessionId: 'sessionId',
+  title: 'title',
+  description: 'description',
+  payload: 'payload',
+  status: 'status',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PlanningDraftScalarFieldEnum = (typeof PlanningDraftScalarFieldEnum)[keyof typeof PlanningDraftScalarFieldEnum]
 
 
 export const SortOrder = {
