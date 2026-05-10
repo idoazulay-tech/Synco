@@ -1,0 +1,459 @@
+Sprint Pack 4א בפרויקט Synco:
+Personal Settings בסיסי לתכנון מותאם משתמש.
+
+מטרה:
+להוסיף שכבת הגדרות משתמש בסיסית שמשפיעה על התכנון של סינקו בצורה בטוחה:
+- שם משתמש מקומי
+- timezone
+- dayStart
+- dayEnd
+- planning buffer
+- transition buffer
+- planning style
+- dark mode preference אם כבר קיים מנגנון מתאים
+- reset learning data רק באזור devtools או settings מתקדם
+
+המטרה אינה לבנות מערכת משתמשים מלאה.
+אין Auth בשלב הזה.
+הכול עדיין תחת default-user, אבל עם UserSettings אמיתי וברור.
+
+חשוב מאוד:
+אל תוסיף Auth.
+אל תוסיף Google Calendar.
+אל תוסיף Qdrant.
+אל תוסיף AI.
+אל תבנה dashboard חדש.
+אל תשנה DB בצורה מסוכנת.
+אל תשנה schedulePlanner עמוק.
+אל תשנה buildSchedule.
+אל תשנה priorityScoreEngine אלא אם צריך רק לקרוא settings.
+אל תשבור planner/schedule.
+אל תשבור planner/apply-schedule.
+אל תשבור planner/commit-draft-schedule.
+אל תשבור PlanningDraftPanel.
+אל תשבור PlanMyDayButton.
+אל תשבור DayView.
+אל תשבור Drag & Drop.
+אל תשבור Resize.
+אל תשבור syncTasksFromServer.
+אל תשבור localStorage migration.
+אל תשבור Trust QA script.
+כל שינוי חייב להיות קטן, מבודד, ובדוק.
+
+רקע:
+Sprint Pack 3ה עבר בהצלחה:
+- Trust QA 40/40
+- No Past Scheduling עובד
+- Anchor Context עובד
+- False Learning Prevention עובד
+- Duration Suggestion advisory only עובד
+- Draft Commit אטומי עובד
+- DayView קיבל AdaptiveTaskBlockContent ל-micro/tiny/compact/full
+
+עכשיו צריך שהשיבוץ יכבד הגדרות משתמש במקום ברירות מחדל בלבד.
+
+לפני שינוי:
+בדוק את הקבצים:
+- prisma/schema.prisma
+- server/routes/settings.ts אם קיים
+- server/routes/planner.ts
+- server/index.ts
+- server/lib/prisma.ts
+- server/services/planningTimeGuardService.ts
+- server/layers/task/types/scheduleTypes.ts
+- server/layers/task/planners/schedulePlanner.ts
+- src/pages/SettingsPage.tsx
+- src/lib/api/settingsClient.ts אם קיים
+- src/lib/api/plannerClient.ts
+- src/store/taskStore.ts
+- src/store/planningDraftStore.ts
+- src/components/planner/PlanMyDayButton.tsx
+- src/components/planner/PlanningDraftPanel.tsx
+
+בדוק במיוחד:
+1. האם כבר יש UserSettings ב-Prisma.
+2. האם כבר יש /api/settings.
+3. האם SettingsPage כבר קורא/שומר הגדרות.
+4. האם planner/schedule כבר מקבל config.dayStart/dayEnd.
+5. האם plannerClient כבר שולח userTimeZone/timezoneOffsetMinutes.
+6. האם planningTimeGuardService משתמש ב-timezone מה-client.
+7. האם dark mode כבר קיים או לא.
+8. האם יש devtools/settings מתקדם.
+
+גבה כל קובץ שאתה משנה.
+
+חלק 1: מודל Settings
+
+אם כבר קיים UserSettings ב-Prisma:
+השתמש בו.
+אל תיצור מודל כפול.
+
+אם חסרים שדות, הוסף רק אם צריך ובזהירות:
+
+שדות מומלצים:
+- userId String unique/index
+- displayName String?
+- timezone String? default "Asia/Jerusalem"
+- dayStart String? default "08:00"
+- dayEnd String? default "22:00"
+- planningBufferMinutes Int default 5
+- transitionBufferMinutes Int default 5
+- planningStyle String default "balanced"
+- themePreference String? default "system"
+- createdAt DateTime
+- updatedAt DateTime
+
+planningStyle ערכים:
+- gentle
+- balanced
+- aggressive
+
+הסבר:
+gentle = תכנון עם יותר מרווחים ופחות עומס.
+balanced = ברירת מחדל מאוזנת.
+aggressive = ניצול יותר חזק של חלונות זמן.
+
+אם schema כבר שונה בעבר ויש UserSettings עם Json, אפשר להשתמש ב-Json במקום migration רחב.
+בחר את הדרך הכי פחות מסוכנת.
+
+חלק 2: API Settings
+
+צור או עדכן routes:
+
+GET /api/settings?userId=default-user
+
+אם אין settings:
+החזר defaults:
+{
+  ok: true,
+  settings: {
+    userId: "default-user",
+    displayName: "",
+    timezone: "Asia/Jerusalem",
+    dayStart: "08:00",
+    dayEnd: "22:00",
+    planningBufferMinutes: 5,
+    transitionBufferMinutes: 5,
+    planningStyle: "balanced",
+    themePreference: "system"
+  }
+}
+
+PUT /api/settings
+
+body:
+{
+  userId,
+  displayName,
+  timezone,
+  dayStart,
+  dayEnd,
+  planningBufferMinutes,
+  transitionBufferMinutes,
+  planningStyle,
+  themePreference
+}
+
+Validation:
+1. userId חובה.
+2. dayStart/dayEnd בפורמט HH:MM.
+3. dayStart חייב להיות לפני dayEnd.
+4. planningBufferMinutes בין 0 ל-60.
+5. transitionBufferMinutes בין 0 ל-60.
+6. planningStyle רק gentle/balanced/aggressive.
+7. themePreference רק system/light/dark.
+8. timezone string לא ריק.
+
+Response:
+{
+  ok: true,
+  settings
+}
+
+חלק 3: Client Settings
+
+צור אם אין:
+src/lib/api/settingsClient.ts
+
+פונקציות:
+- getUserSettings(userId)
+- updateUserSettings(settings)
+
+צור אם צריך:
+src/store/settingsStore.ts
+
+ה-store יכיל:
+- settings
+- loadSettings()
+- saveSettings(patch)
+- getEffectiveSettings()
+
+אפשר להשתמש ב-Zustand persist כ-fallback.
+אבל מקור אמת צריך להיות server אם /api/settings עובד.
+
+חלק 4: SettingsPage UI
+
+עדכן את:
+src/pages/SettingsPage.tsx
+
+הוסף אזור:
+"הגדרות תכנון"
+
+שדות:
+1. שם
+2. אזור זמן
+   default: Asia/Jerusalem
+3. תחילת יום
+   time input
+4. סוף יום
+   time input
+5. מרווח תכנון
+   מספר בדקות
+   הסבר: "כמה דקות להשאיר לפני המשימה הראשונה או בין החלטות תכנון"
+6. מרווח מעבר
+   מספר בדקות
+   הסבר: "זמן מעבר בין משימות או הקשרים"
+7. סגנון תכנון
+   gentle / balanced / aggressive
+   עם טקסט בעברית:
+   gentle: "יותר מרווחים, פחות לחץ"
+   balanced: "איזון בין הספק לרוגע"
+   aggressive: "מנצל יותר חלונות זמן"
+8. העדפת תצוגה
+   system / light / dark
+   רק אם יש תמיכה קיימת.
+   אם אין תמיכה, שמור את הערך אבל אל תנסה להחיל dark mode.
+
+כפתורים:
+- שמור הגדרות
+- שחזר ברירת מחדל
+
+הודעות:
+- נשמר בהצלחה
+- לא הצלחתי לשמור כרגע
+
+חלק 5: שילוב ב-planner/schedule
+
+ב-server/routes/planner.ts:
+
+כאשר מתקבלת בקשה ל-/api/planner/schedule:
+1. טען settings לפי userId.
+2. אם אין settings, השתמש defaults.
+3. בנה config:
+   - dayStart מתוך settings.dayStart
+   - dayEnd מתוך settings.dayEnd
+   - buffer מתוך settings.planningBufferMinutes אם רלוונטי
+   - transitionBuffer מתוך settings.transitionBufferMinutes אם רלוונטי
+   - planningStyle משפיע רק באופן עדין
+
+חשוב:
+No Past Scheduling עדיין מנצח.
+אם היום הנוכחי והשעה עכשיו אחרי dayStart:
+earliestAllowedTime = now + planningBufferMinutes
+ולא dayStart.
+
+כלומר:
+settings.dayStart = 08:00
+now = 17:20
+planningBuffer = 5
+earliest = 17:25
+
+חלק 6: planningStyle
+
+יישום ראשוני, בלי שינוי עמוק:
+
+gentle:
+- הוסף warning/summary:
+  "מצב תכנון עדין פעיל, סינקו ישאיר יותר מרווחים"
+- אם יש config מתאים ל-buffer, הגדל planningBufferMinutes ב-5.
+- אל תשנה schedulePlanner עמוק.
+
+balanced:
+- השתמש בערכים כמו שהם.
+
+aggressive:
+- הקטן buffer בפועל ב-2 דקות, אבל לא מתחת ל-0.
+- אל תדחוס משימות מעבר למה שה-planner כבר עושה.
+- אל תשבור No Past.
+
+אם אין דרך בטוחה להשפיע על השיבוץ כרגע:
+רק החזר planningStyleSummary ב-response ודווח.
+
+חלק 7: שילוב ב-client plannerClient
+
+ב-src/lib/api/plannerClient.ts:
+
+כאשר שולחים scheduleDayPreview או scheduleDraftTasksPreview:
+המשך לשלוח:
+- nowIso
+- timezoneOffsetMinutes
+- userTimeZone
+
+אם settingsStore קיים ויש settings.timezone:
+שלח userTimeZone מה-settings.
+אם לא, השתמש:
+Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Jerusalem"
+
+חלק 8: reset learning data
+
+רק אם בטוח ומהיר:
+הוסף באזור settings מתקדם:
+"ניקוי נתוני למידה לבדיקה"
+
+אבל אל תבצע מחיקה אמיתית בלי confirm ברור.
+
+אם מוסיפים endpoint:
+POST /api/settings/reset-learning-data
+
+body:
+{ userId, confirm: "RESET_LEARNING_DATA" }
+
+הוא ימחק רק LearningEvents של userId.
+לא למחוק UserTasks.
+לא למחוק PlanningDrafts.
+לא למחוק Settings.
+
+אם זה מסוכן או גדול מדי:
+אל תבנה עכשיו.
+רק הוסף ל-checklist future.
+
+חלק 9: בדיקות חובה
+
+Build:
+1. npm run build
+
+API:
+2. GET /api/health
+3. GET /api/settings?userId=default-user
+4. PUT /api/settings עם settings תקינים
+5. PUT /api/settings עם dayStart אחרי dayEnd מחזיר 400
+6. PUT /api/settings עם planningStyle לא חוקי מחזיר 400
+7. POST /api/planner/schedule משתמש ב-dayStart/dayEnd מה-settings
+8. No Past עדיין מנצח על dayStart
+9. planningBufferMinutes משפיע על earliestAllowedTime אם רלוונטי
+10. planner/apply-schedule עדיין עובד
+11. planner/commit-draft-schedule עדיין עובד
+12. planner/parse עדיין עובד
+13. learning/daily-summary עדיין עובד
+14. learning/planning-context עדיין עובד
+15. learning/duration-suggestions עדיין עובד
+
+UI:
+16. SettingsPage נטען
+17. עריכת שם עובדת
+18. עריכת timezone עובדת
+19. עריכת dayStart/dayEnd עובדת
+20. עריכת planningBuffer עובדת
+21. עריכת transitionBuffer עובדת
+22. בחירת planningStyle עובדת
+23. שמירה מציגה הודעת הצלחה
+24. רענון הדף שומר את ההגדרות
+25. planner/schedule משתמש בהגדרות שנשמרו
+26. DayView לא נשבר
+27. PlanningDraftPanel לא נשבר
+28. PlanMyDayButton לא נשבר
+29. Drag & Drop לא נשבר
+30. Resize לא נשבר
+31. Trust QA script עדיין עובר
+
+פלט סופי:
+החזר דוח בעברית במבנה הבא:
+
+# דוח Sprint Pack 4א - Personal Settings בסיסי
+
+## 1. מה נבדק לפני שינוי
+טבלה:
+קובץ | למה נבדק | מסקנה
+
+## 2. החלטה ארכיטקטונית
+כתוב:
+- האם השתמשת ב-UserSettings קיים או יצרת/הרחבת מודל
+- איפה נשמרות ההגדרות
+- איך ה-client קורא ושומר
+- איך planner/schedule משתמש בהגדרות
+- איך No Past נשאר חזק יותר מ-dayStart
+
+## 3. מה שונה
+טבלה:
+קובץ | שינוי | למה
+
+## 4. מה גובה
+טבלה:
+קובץ מקורי | קובץ גיבוי
+
+## 5. אילו הגדרות קיימות עכשיו
+טבלה:
+הגדרה | ברירת מחדל | השפעה
+
+## 6. איך ההגדרות משפיעות על השיבוץ
+כתוב:
+settings
+→ planner config
+→ No Past override
+→ schedule
+
+## 7. איך נראה מסך ההגדרות
+כתוב מה נוסף ל-SettingsPage.
+
+## 8. תוצאות build
+עבר / נכשל
+
+## 9. תוצאות API
+טבלה:
+endpoint | תוצאה | הערה
+
+## 10. תוצאות UI
+טבלה:
+פעולה | תוצאה | הערה
+
+## 11. תוצאות Trust QA regression
+כתוב האם scripts/synco-trust-qa.sh עבר.
+
+## 12. בדיקות שלא נשברו
+רשום:
+- planner/schedule
+- planner/apply-schedule
+- planner/commit-draft-schedule
+- planner/parse
+- learning/events
+- learning/daily-summary
+- learning/planning-context
+- learning/duration-suggestions
+- PlanningDraftPanel
+- PlanMyDayButton
+- Preview
+- אישור ושמירה
+- Drag & Drop
+- Resize
+- DayView
+- AdaptiveTaskBlockContent
+- syncTasksFromServer
+- localStorage migration
+
+## 13. דברים שלא שונו בכוונה
+רשום:
+- לא נוסף Auth
+- לא נוסף Google Calendar
+- לא נוסף Qdrant
+- לא נוסף AI
+- לא נוסף dashboard
+- לא שונה schedulePlanner עמוק
+- לא נמחקו משימות
+- לא נמחקו LearningEvents אלא אם reset נבנה במפורש
+
+## 14. סיכונים שנשארו
+רשום:
+- עדיין default-user
+- אין Auth
+- timezone עדיין בסיסי
+- planningStyle עדיין עדין ולא מנוע תכנון מלא
+- אין Google Calendar
+- אין mobile מלא
+
+## 15. האם Sprint Pack 4א סגור
+כן / לא
+
+## 16. השלב הבא
+אם נסגר:
+Sprint Pack 4ב - Home “מה עכשיו”:
+חיזוק מסך הבית סביב המשימה הנוכחית, למה עכשיו, הבא בתור, התחל, סיימתי, דחה, וקשה לי להתחיל.

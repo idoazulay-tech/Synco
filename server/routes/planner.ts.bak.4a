@@ -2,12 +2,6 @@ import { Router, Request, Response } from 'express';
 import { chatCompletion } from '../brain/utils/openai-client.js';
 import { prisma } from '../lib/prisma.js';
 import { buildSchedule } from '../layers/task/planners/schedulePlanner.js';
-import {
-  PLANNING_CONFIG_DEFAULTS,
-  applyPlanningStyleBuffer,
-  planningStyleSummaryHe,
-} from '../types/settingsTypes.js';
-import type { PlanningConfig } from '../types/settingsTypes.js';
 import { adaptUserTasksToScheduleTasks } from '../layers/task/adapters/userTaskToScheduleAdapter.js';
 import type { ScheduleConfig } from '../layers/task/types/scheduleTypes.js';
 import { scoreAndSort } from '../layers/task/priority/priorityScoreEngine.js';
@@ -87,33 +81,14 @@ ${existingTasks && existingTasks.length > 0 ? `\nמשימות קיימות בי�
   }
 });
 
-// ── Sprint 4א: load user planning settings (safe, fire-and-forget on failure) ──
-async function loadUserPlanningConfig(userId: string): Promise<PlanningConfig> {
-  try {
-    const record = await prisma.userSettings.findFirst();
-    if (!record?.planningConfig) return { ...PLANNING_CONFIG_DEFAULTS };
-    const raw = record.planningConfig as Record<string, unknown>;
-    return {
-      displayName:             (raw.displayName             as string)  ?? PLANNING_CONFIG_DEFAULTS.displayName,
-      timezone:                (raw.timezone                as string)  ?? PLANNING_CONFIG_DEFAULTS.timezone,
-      dayStart:                (raw.dayStart                as string)  ?? PLANNING_CONFIG_DEFAULTS.dayStart,
-      dayEnd:                  (raw.dayEnd                  as string)  ?? PLANNING_CONFIG_DEFAULTS.dayEnd,
-      planningBufferMinutes:   (raw.planningBufferMinutes   as number)  ?? PLANNING_CONFIG_DEFAULTS.planningBufferMinutes,
-      transitionBufferMinutes: (raw.transitionBufferMinutes as number)  ?? PLANNING_CONFIG_DEFAULTS.transitionBufferMinutes,
-      planningStyle:           (raw.planningStyle           as PlanningConfig['planningStyle'])  ?? PLANNING_CONFIG_DEFAULTS.planningStyle,
-      themePreference:         (raw.themePreference         as PlanningConfig['themePreference']) ?? PLANNING_CONFIG_DEFAULTS.themePreference,
-    };
-  } catch {
-    return { ...PLANNING_CONFIG_DEFAULTS };
-  }
-}
-
 // POST /api/planner/schedule — suggest a schedule for the day (read-only, no DB writes)
 router.post('/schedule', async (req: Request, res: Response) => {
   try {
     const {
       userId = 'default-user',
       date,
+      dayStart = '08:00',
+      dayEnd = '22:00',
       tasks: bodyTasks,
       // Stage 3ב.1: No Past context from client
       nowIso,
@@ -123,13 +98,8 @@ router.post('/schedule', async (req: Request, res: Response) => {
 
     const dateIso: string = date || new Date().toISOString().split('T')[0];
 
-    // Sprint 4א: load settings from DB; client dayStart/dayEnd used as fallback only
-    const userCfg = await loadUserPlanningConfig(userId);
-    const dayStart: string = userCfg.dayStart;
-    const dayEnd:   string = userCfg.dayEnd;
-
-    const startHour = parseInt(dayStart.split(':')[0], 10);
-    const endHour   = parseInt(dayEnd.split(':')[0],   10);
+    const startHour = parseInt((dayStart as string).split(':')[0], 10);
+    const endHour   = parseInt((dayEnd   as string).split(':')[0], 10);
 
     let rawTasks: any[];
 
@@ -224,17 +194,10 @@ router.post('/schedule', async (req: Request, res: Response) => {
     const scheduleTasks = adaptUserTasksToScheduleTasks(scored.map(s => s.task));
 
     // ── Stage 3ב.1: Apply No Past config ─────────────────────────────────────
-    // Sprint 4א: apply planningStyle to buffer
-    const effectiveBuffer = applyPlanningStyleBuffer(
-      userCfg.planningBufferMinutes,
-      userCfg.planningStyle
-    );
-    const planningStyleSummary = planningStyleSummaryHe(userCfg.planningStyle);
-
     const baseConfig: ScheduleConfig = {
-      dayStartHour:   isNaN(startHour) ? 8  : startHour,
-      dayEndHour:     isNaN(endHour)   ? 22 : endHour,
-      bufferMinutes:  effectiveBuffer,
+      dayStartHour: isNaN(startHour) ? 8  : startHour,
+      dayEndHour:   isNaN(endHour)   ? 22 : endHour,
+      bufferMinutes: 5,
       minTaskMinutes: 10,
     };
     const config = applyNoPastSchedulingConfig(baseConfig, nowContext);
@@ -382,16 +345,6 @@ router.post('/schedule', async (req: Request, res: Response) => {
             warnings:        durationSuggCtx.warnings,
           }
         : null,
-      // Sprint 4א: planning settings summary
-      planningStyleSummary,
-      planningSettingsApplied: {
-        dayStart:              userCfg.dayStart,
-        dayEnd:                userCfg.dayEnd,
-        planningBufferMinutes: userCfg.planningBufferMinutes,
-        effectiveBuffer,
-        planningStyle:         userCfg.planningStyle,
-        transitionBuffer:      userCfg.transitionBufferMinutes,
-      },
     });
   } catch (error: any) {
     console.error('POST /api/planner/schedule error:', error);

@@ -45,6 +45,7 @@ export type UserSettingsCountAggregateOutputType = {
   language: number
   insightsMode: number
   regulationProfile: number
+  planningConfig: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -72,6 +73,7 @@ export type UserSettingsCountAggregateInputType = {
   language?: true
   insightsMode?: true
   regulationProfile?: true
+  planningConfig?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -154,6 +156,7 @@ export type UserSettingsGroupByOutputType = {
   language: string
   insightsMode: $Enums.InsightsMode
   regulationProfile: runtime.JsonValue | null
+  planningConfig: runtime.JsonValue | null
   createdAt: Date
   updatedAt: Date
   _count: UserSettingsCountAggregateOutputType | null
@@ -184,6 +187,7 @@ export type UserSettingsWhereInput = {
   language?: Prisma.StringFilter<"UserSettings"> | string
   insightsMode?: Prisma.EnumInsightsModeFilter<"UserSettings"> | $Enums.InsightsMode
   regulationProfile?: Prisma.JsonNullableFilter<"UserSettings">
+  planningConfig?: Prisma.JsonNullableFilter<"UserSettings">
   createdAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
 }
@@ -193,6 +197,7 @@ export type UserSettingsOrderByWithRelationInput = {
   language?: Prisma.SortOrder
   insightsMode?: Prisma.SortOrder
   regulationProfile?: Prisma.SortOrderInput | Prisma.SortOrder
+  planningConfig?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -205,6 +210,7 @@ export type UserSettingsWhereUniqueInput = Prisma.AtLeast<{
   language?: Prisma.StringFilter<"UserSettings"> | string
   insightsMode?: Prisma.EnumInsightsModeFilter<"UserSettings"> | $Enums.InsightsMode
   regulationProfile?: Prisma.JsonNullableFilter<"UserSettings">
+  planningConfig?: Prisma.JsonNullableFilter<"UserSettings">
   createdAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
 }, "id">
@@ -214,6 +220,7 @@ export type UserSettingsOrderByWithAggregationInput = {
   language?: Prisma.SortOrder
   insightsMode?: Prisma.SortOrder
   regulationProfile?: Prisma.SortOrderInput | Prisma.SortOrder
+  planningConfig?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.UserSettingsCountOrderByAggregateInput
@@ -229,6 +236,7 @@ export type UserSettingsScalarWhereWithAggregatesInput = {
   language?: Prisma.StringWithAggregatesFilter<"UserSettings"> | string
   insightsMode?: Prisma.EnumInsightsModeWithAggregatesFilter<"UserSettings"> | $Enums.InsightsMode
   regulationProfile?: Prisma.JsonNullableWithAggregatesFilter<"UserSettings">
+  planningConfig?: Prisma.JsonNullableWithAggregatesFilter<"UserSettings">
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"UserSettings"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"UserSettings"> | Date | string
 }
@@ -238,6 +246,7 @@ export type UserSettingsCreateInput = {
   language?: string
   insightsMode?: $Enums.InsightsMode
   regulationProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  planningConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -247,6 +256,7 @@ export type UserSettingsUncheckedCreateInput = {
   language?: string
   insightsMode?: $Enums.InsightsMode
   regulationProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  planningConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -256,6 +266,7 @@ export type UserSettingsUpdateInput = {
   language?: Prisma.StringFieldUpdateOperationsInput | string
   insightsMode?: Prisma.EnumInsightsModeFieldUpdateOperationsInput | $Enums.InsightsMode
   regulationProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  planningConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -265,6 +276,7 @@ export type UserSettingsUncheckedUpdateInput = {
   language?: Prisma.StringFieldUpdateOperationsInput | string
   insightsMode?: Prisma.EnumInsightsModeFieldUpdateOperationsInput | $Enums.InsightsMode
   regulationProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  planningConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -274,6 +286,7 @@ export type UserSettingsCreateManyInput = {
   language?: string
   insightsMode?: $Enums.InsightsMode
   regulationProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  planningConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -283,6 +296,7 @@ export type UserSettingsUpdateManyMutationInput = {
   language?: Prisma.StringFieldUpdateOperationsInput | string
   insightsMode?: Prisma.EnumInsightsModeFieldUpdateOperationsInput | $Enums.InsightsMode
   regulationProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  planningConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -292,6 +306,7 @@ export type UserSettingsUncheckedUpdateManyInput = {
   language?: Prisma.StringFieldUpdateOperationsInput | string
   insightsMode?: Prisma.EnumInsightsModeFieldUpdateOperationsInput | $Enums.InsightsMode
   regulationProfile?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  planningConfig?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -301,6 +316,7 @@ export type UserSettingsCountOrderByAggregateInput = {
   language?: Prisma.SortOrder
   insightsMode?: Prisma.SortOrder
   regulationProfile?: Prisma.SortOrder
+  planningConfig?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -332,6 +348,7 @@ export type UserSettingsSelect<ExtArgs extends runtime.Types.Extensions.Internal
   language?: boolean
   insightsMode?: boolean
   regulationProfile?: boolean
+  planningConfig?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["userSettings"]>
@@ -341,6 +358,7 @@ export type UserSettingsSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
   language?: boolean
   insightsMode?: boolean
   regulationProfile?: boolean
+  planningConfig?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["userSettings"]>
@@ -350,6 +368,7 @@ export type UserSettingsSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
   language?: boolean
   insightsMode?: boolean
   regulationProfile?: boolean
+  planningConfig?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }, ExtArgs["result"]["userSettings"]>
@@ -359,11 +378,12 @@ export type UserSettingsSelectScalar = {
   language?: boolean
   insightsMode?: boolean
   regulationProfile?: boolean
+  planningConfig?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type UserSettingsOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "language" | "insightsMode" | "regulationProfile" | "createdAt" | "updatedAt", ExtArgs["result"]["userSettings"]>
+export type UserSettingsOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "language" | "insightsMode" | "regulationProfile" | "planningConfig" | "createdAt" | "updatedAt", ExtArgs["result"]["userSettings"]>
 
 export type $UserSettingsPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "UserSettings"
@@ -373,6 +393,7 @@ export type $UserSettingsPayload<ExtArgs extends runtime.Types.Extensions.Intern
     language: string
     insightsMode: $Enums.InsightsMode
     regulationProfile: runtime.JsonValue | null
+    planningConfig: runtime.JsonValue | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["userSettings"]>
@@ -802,6 +823,7 @@ export interface UserSettingsFieldRefs {
   readonly language: Prisma.FieldRef<"UserSettings", 'String'>
   readonly insightsMode: Prisma.FieldRef<"UserSettings", 'InsightsMode'>
   readonly regulationProfile: Prisma.FieldRef<"UserSettings", 'Json'>
+  readonly planningConfig: Prisma.FieldRef<"UserSettings", 'Json'>
   readonly createdAt: Prisma.FieldRef<"UserSettings", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"UserSettings", 'DateTime'>
 }

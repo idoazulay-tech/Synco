@@ -60,6 +60,7 @@ model UserSettings {
   language          String       @default("he")
   insightsMode      InsightsMode @default(hidden)
   regulationProfile Json?
+  planningConfig    Json?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 }

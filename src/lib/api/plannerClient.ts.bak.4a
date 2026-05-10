@@ -133,13 +133,7 @@ export async function scheduleDayPreview(
   // Stage 3ב.1: send client-side time context for No Past guard
   const nowIso = new Date().toISOString();
   const timezoneOffsetMinutes = new Date().getTimezoneOffset();
-  // Sprint 4א: use settings timezone if available, else Intl detection
-  let userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jerusalem';
-  try {
-    const { useSettingsStore } = await import('@/store/settingsStore');
-    const tz = useSettingsStore.getState().settings.timezone;
-    if (tz) userTimeZone = tz;
-  } catch { /* silent — settings store not ready */ }
+  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jerusalem';
 
   const res = await fetch('/api/planner/schedule', {
     method: 'POST',
@@ -210,13 +204,7 @@ export async function scheduleDraftTasksPreview(
 
   const nowIso = new Date().toISOString();
   const timezoneOffsetMinutes = new Date().getTimezoneOffset();
-  // Sprint 4א: use settings timezone if available
-  let userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jerusalem';
-  try {
-    const { useSettingsStore } = await import('@/store/settingsStore');
-    const tz = useSettingsStore.getState().settings.timezone;
-    if (tz) userTimeZone = tz;
-  } catch { /* silent */ }
+  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jerusalem';
 
   const tasks = draftTasks.map(d => draftTaskToPlannerPayload(d, dateIso));
 

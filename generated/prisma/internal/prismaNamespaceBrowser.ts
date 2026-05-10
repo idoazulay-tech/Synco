@@ -140,6 +140,7 @@ export const UserSettingsScalarFieldEnum = {
   language: 'language',
   insightsMode: 'insightsMode',
   regulationProfile: 'regulationProfile',
+  planningConfig: 'planningConfig',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
