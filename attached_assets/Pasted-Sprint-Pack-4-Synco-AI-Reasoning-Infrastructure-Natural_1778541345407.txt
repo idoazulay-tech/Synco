@@ -1,0 +1,921 @@
+Sprint Pack 4ד בפרויקט Synco:
+AI Reasoning Infrastructure + Natural Language Day Command Layer
+
+מטרה:
+לבנות תשתית AI פעילה לטסטים בתוך סינקו, כך שהמשתמש יוכל לכתוב או להקליט הוראות חופשיות על היום שלו, והמערכת תבין אותן בצורה מבוקרת.
+
+המטרה היא שסינקו יוכל להבין הוראות כמו:
+- "נכנסה לי משימה חשובה ב-14:00, סדר לי את היום מחדש"
+- "תדחה את להוציא את קיטו לאחרי המקלחת"
+- "תמחק את להתקשר לדני"
+- "תשכפל את קניות גם למחר"
+- "את הסדר יום הזה תעשה לי כל יום ראשון עד חמישי"
+- "רק את משימות הבוקר תעשה כל יום"
+- "תעביר את כל מה שאחרי 17:00 למחר"
+- "תוסיף פגישה עם לקוח ב-10 לשעה וחצי ותארגן את שאר היום סביב זה"
+- "תבטל את המשימות הלא חשובות ותשאיר רק מה שחייב לקרות"
+
+העיקרון:
+סינקו הוא המוח התפעולי.
+מודל AI הוא שכבת הבנה.
+החוקים של סינקו הם השומר.
+המשתמש הוא המאשר.
+
+כלומר:
+קלט חופשי
+→ AI Structured Reasoning
+→ JSON מסודר
+→ Synco Validators
+→ Preview של שינויים
+→ אישור משתמש
+→ DB transaction
+
+חשוב מאוד:
+כן להפעיל AI עכשיו לטסטים אם OPENAI_API_KEY קיים.
+לא להכניס API key לקוד.
+API keys רק ב-server דרך Replit Secrets / env.
+אם אין key, לא לקרוס, להשתמש fallback.
+
+אסור:
+אל תיתן למודל AI לשמור ישירות ל-DB.
+אל תיתן למודל AI למחוק ישירות משימות.
+אל תיתן למודל AI לשנות משימות קיימות בלי Preview ואישור.
+אל תיתן למודל AI לשבץ סופית בלי Synco validators.
+אל תיתן למודל AI לעקוף No Past Scheduling.
+אל תיתן למודל AI לעקוף commit-draft-schedule.
+אל תיתן למודל AI להמציא learningBoost.
+אל תיתן למודל AI להמציא durationSuggestion כאילו זה דאטה היסטורי.
+אל תיתן למודל AI להסיק רגשות בלי שהמשתמש אמר.
+אל תוסיף Auth.
+אל תוסיף Google Calendar.
+אל תוסיף Qdrant.
+אל תוסיף dashboard.
+אל תשנה DB בצורה כבדה.
+אל תשנה schedulePlanner עמוק.
+אל תשנה buildSchedule.
+אל תשנה priorityScoreEngine.
+אל תשבור planner/schedule.
+אל תשבור planner/parse.
+אל תשבור planner/apply-schedule.
+אל תשבור planner/commit-draft-schedule.
+אל תשבור PlanningDraftPanel.
+אל תשבור TaskReportDialog.
+אל תשבור HomePage.
+אל תשבור DayView.
+אל תשבור Drag & Drop.
+אל תשבור Resize.
+אל תשבור Trust QA script.
+
+רקע קיים:
+כבר קיימים:
+- planner/parse
+- planner/schedule
+- planner/apply-schedule
+- planner/commit-draft-schedule
+- PlanningDraftPanel
+- TaskReportDialog
+- Home Guidance
+- Task Operational Blueprints rule-based
+- LearningEvents
+- Duration Suggestions
+- No Past Scheduling
+- Anchor Context
+- False Learning Prevention
+- User Settings
+- Trust QA script
+
+לפני שינוי:
+בדוק את הקבצים:
+- package.json
+- server/index.ts
+- server/routes/planner.ts
+- server/routes/learning.ts
+- server/routes/user-tasks.ts
+- server/lib/prisma.ts
+- server/brain/utils/openai-client.ts אם קיים
+- src/lib/api/plannerClient.ts
+- src/components/planner/PlanningDraftPanel.tsx
+- src/components/task/TaskReportDialog.tsx
+- src/pages/DayViewPage.tsx
+- src/pages/HomePage.tsx
+- src/store/taskStore.ts
+- src/store/planningDraftStore.ts
+- src/lib/taskOperational/taskOperationalBlueprintEngine.ts
+- src/lib/taskReport/taskReportAnalyzer.ts
+- scripts/synco-trust-qa.sh
+- .env.example אם קיים
+
+גבה כל קובץ שאתה משנה.
+
+אם חסרה ספריית openai:
+npm install openai
+
+אם zod לא קיים:
+npm install zod
+
+אבל קודם בדוק אם הן כבר קיימות.
+
+==================================================
+חלק 1: Feature Flags להפעלה עכשיו בטסטים
+==================================================
+
+צור קובץ:
+
+server/ai/aiFeatureFlags.ts
+
+הגדר:
+
+export const AI_FEATURES = {
+  enabled: process.env.SYNCO_AI_ENABLED === "true",
+  provider: process.env.SYNCO_AI_PROVIDER || "openai",
+  parseEnabled: process.env.SYNCO_AI_PARSE_ENABLED === "true",
+  taskReportEnabled: process.env.SYNCO_AI_TASK_REPORT_ENABLED === "true",
+  breakdownEnabled: process.env.SYNCO_AI_BREAKDOWN_ENABLED === "true",
+  dayCommandEnabled: process.env.SYNCO_AI_DAY_COMMAND_ENABLED === "true",
+  externalKnowledgeEnabled: false
+}
+
+חשוב:
+לטסטים עכשיו, אם OPENAI_API_KEY קיים ורוצים להפעיל:
+הוסף ל-.env.example:
+
+SYNCO_AI_ENABLED=true
+SYNCO_AI_PROVIDER=openai
+SYNCO_AI_PARSE_ENABLED=true
+SYNCO_AI_TASK_REPORT_ENABLED=true
+SYNCO_AI_BREAKDOWN_ENABLED=true
+SYNCO_AI_DAY_COMMAND_ENABLED=true
+OPENAI_API_KEY=
+
+אבל לא לשים key אמיתי בקובץ.
+רק Replit Secrets.
+
+אם אין OPENAI_API_KEY:
+AI status צריך להחזיר missing key ולא לקרוס.
+fallback חייב לעבוד.
+
+==================================================
+חלק 2: AI Provider Interface
+==================================================
+
+צור:
+
+server/ai/providers/aiProvider.ts
+
+הגדר:
+
+export type AIProviderName = "openai" | "gemini" | "claude" | "mock"
+
+export type AIRequest = {
+  systemPrompt: string
+  userPrompt: string
+  schemaName: string
+  schema: unknown
+  temperature?: number
+  maxOutputTokens?: number
+}
+
+export type AIProviderResponse<T> = {
+  ok: boolean
+  provider: AIProviderName
+  data?: T
+  rawText?: string
+  error?: string
+  usage?: {
+    inputTokens?: number
+    outputTokens?: number
+    totalTokens?: number
+  }
+}
+
+export interface AIProvider {
+  name: AIProviderName
+  generateStructured<T>(request: AIRequest): Promise<AIProviderResponse<T>>
+}
+
+צור:
+- server/ai/providers/mockAIProvider.ts
+- server/ai/providers/openAIProvider.ts
+- server/ai/providers/geminiProvider.ts
+- server/ai/providers/claudeProvider.ts
+- server/ai/providers/getAIProvider.ts
+
+OpenAI:
+- משתמש רק ב-process.env.OPENAI_API_KEY
+- אם אין key מחזיר ok:false
+- לא מדפיס key
+- מחזיר structured JSON אם אפשר
+- אם נכשל מחזיר ok:false ולא זורק crash
+
+Gemini / Claude:
+כרגע stubs בלבד:
+ok:false
+error:"provider_not_implemented"
+
+==================================================
+חלק 3: AI Schemas
+==================================================
+
+צור:
+
+server/ai/schemas/syncoAISchemas.ts
+
+השתמש ב-zod.
+
+צור schemas:
+
+1. ParsedPlanningIntentSchema
+לניתוח קלט חופשי למשימות.
+
+2. TaskReportAIAnalysisSchema
+לניתוח דיווח משימה.
+
+3. TaskBreakdownSchema
+לפירוק משימה.
+
+4. DayCommandIntentSchema
+להוראות חופשיות על יום קיים.
+
+DayCommandIntentSchema צריך לכלול:
+
+{
+  ok: boolean,
+  commandType: enum [
+    "create_tasks",
+    "update_tasks",
+    "delete_tasks",
+    "duplicate_tasks",
+    "reschedule_tasks",
+    "replan_day",
+    "make_recurring",
+    "partial_repeat",
+    "mixed_changes",
+    "ask_clarification"
+  ],
+  targetScope: enum [
+    "specific_tasks",
+    "selected_tasks",
+    "all_day",
+    "time_range",
+    "morning",
+    "afternoon",
+    "evening",
+    "unclear"
+  ],
+  dateIso: string nullable,
+  operations: Operation[],
+  assumptions: string[],
+  questions: string[],
+  warnings: string[],
+  confidence: enum ["low", "medium", "high"],
+  requiresConfirmation: boolean
+}
+
+Operation schema:
+{
+  operationId: string,
+  type: enum [
+    "create_task",
+    "update_task",
+    "delete_task",
+    "duplicate_task",
+    "reschedule_task",
+    "create_recurrence",
+    "replan_day",
+    "split_task",
+    "ask_question"
+  ],
+  targetTaskId: string nullable,
+  targetTaskTitle: string nullable,
+  targetConfidence: enum ["low", "medium", "high"],
+  patch: object nullable,
+  newTask: object nullable,
+  recurrence: object nullable,
+  reason: string,
+  riskLevel: enum ["low", "medium", "high"],
+  requiresExplicitConfirm: boolean
+}
+
+recurrence object:
+{
+  frequency: enum ["daily", "weekly", "custom"],
+  daysOfWeek: string array,
+  startDate: string nullable,
+  endDate: string nullable,
+  sourceTaskIds: string array,
+  appliesTo: enum ["all_day", "selected_tasks", "time_range", "morning", "custom"]
+}
+
+חשוב:
+אם schema validation נכשל:
+לא משתמשים בתשובת AI.
+fallback או שאלה למשתמש.
+
+==================================================
+חלק 4: System Prompts
+==================================================
+
+צור:
+
+server/ai/prompts/syncoSystemPrompts.ts
+
+Prompt בסיס:
+אתה שכבת הבנה עבור Synco, מערכת ניהול עצמי.
+אתה לא שומר נתונים.
+אתה לא משנה DB.
+אתה לא מחליט סופית.
+אתה מחזיר JSON בלבד לפי schema.
+אסור לך להמציא היסטוריה.
+אסור לך להכליל מדיווח אחד.
+אסור לך להסיק רגשות בלי שהמשתמש אמר.
+אסור לך לתת learningBoost.
+אסור לך לתת durationSuggestion כאילו זה נתון היסטורי.
+אם אתה מניח משהו, כתוב assumptions.
+אם חסר מידע חשוב, כתוב questions.
+אם אין ביטחון, confidence=low.
+
+Prompt ל-Day Command:
+נתח הוראה חופשית של משתמש לגבי יום קיים.
+יש לך רשימת משימות קיימות עם id, title, startTime, endTime, duration, status, priority, flexibility.
+המטרה היא להחזיר תוכנית שינויים בלבד.
+אסור לשמור.
+אסור לבצע.
+אם המשתמש מבקש למחוק, לשנות, לשכפל, לדחות, לחזור כל יום, ליצור, או לתכנן מחדש, החזר operations מסודרות.
+אם target לא ברור, אל תנחש. החזר ask_clarification.
+אם יש כמה משימות עם שם דומה, שאל שאלה.
+אם פעולה מסוכנת כמו delete או שינוי של כל היום, requiresConfirmation=true.
+אם המשתמש אומר "המשימה החשובה שנכנסה", צור operation create_task או replan_day לפי הקלט.
+אם המשתמש אומר "אותו סדר יום כל יום", צור create_recurrence עם appliesTo all_day.
+אם המשתמש אומר "רק חלק ממנו", targetScope צריך להיות selected_tasks/time_range/morning וכו'.
+אל תיצור recurrence אם לא ברור אילו משימות חוזרות, שאל שאלה.
+
+==================================================
+חלק 5: AI Reasoning Service
+==================================================
+
+צור:
+
+server/ai/services/syncoAIReasoningService.ts
+
+ייצא:
+
+parsePlanningInputWithAI(...)
+analyzeTaskReportWithAI(...)
+buildTaskBreakdownWithAI(...)
+interpretDayCommandWithAI(...)
+
+interpretDayCommandWithAI מקבל:
+{
+  userId,
+  dateIso,
+  text,
+  nowIso,
+  settings,
+  existingTasks,
+  selectedTaskIds?
+}
+
+כל פונקציה:
+1. בודקת feature flags.
+2. אם AI כבוי מחזירה ok:false reason:"ai_disabled".
+3. קוראת provider.
+4. עושה zod validation.
+5. מעבירה דרך Synco AI Output Validator.
+6. מחזירה result נקי או fallback reason.
+
+אסור:
+- לא לשמור DB
+- לא לשנות משימות
+- לא לשבץ סופית
+- לא למחוק
+- לא ליצור recurrence בפועל
+
+==================================================
+חלק 6: Synco AI Output Validator
+==================================================
+
+צור:
+
+server/ai/validators/syncoAIOutputValidator.ts
+
+פונקציות:
+validateParsedPlanningIntent(...)
+validateTaskReportAIAnalysis(...)
+validateTaskBreakdown(...)
+validateDayCommandIntent(...)
+
+בדיקות DayCommand:
+1. כל targetTaskId חייב להיות קיים ב-existingTasks.
+2. אם targetTaskId לא קיים אבל יש title match:
+   רק אם יש התאמה יחידה וברורה, אפשר להציע target.
+   אחרת חייב ask_clarification.
+3. delete_task תמיד requiresExplicitConfirm=true.
+4. delete_task לא מוחק פיזית, רק soft delete דרך existing user-tasks flow.
+5. update completed/deleted tasks אסור אלא אם המשתמש ביקש במפורש.
+6. no past scheduling נשמר.
+7. reschedule_task לא יכול לשבץ בעבר.
+8. create_recurrence לא יכול ליצור מאות משימות ידנית.
+   אם recurringEngine קיים ובטוח, השתמש בו.
+   אחרת החזר recurrence proposal בלבד.
+9. replan_day לא משנה mustLock/fixed בלי אישור מפורש.
+10. AI לא יכול להוסיף learningBoost.
+11. AI לא יכול להוסיף durationSuggestion.
+12. AI לא יכול ליצור טענות רגשיות.
+13. אם confidence low, אין apply, רק clarification.
+
+אם validation נכשל:
+ok:false
+reason:"ai_validation_failed"
+warnings.
+
+==================================================
+חלק 7: חיבור זהיר ל-/api/planner/parse
+==================================================
+
+ב-server/routes/planner.ts:
+
+ב-POST /api/planner/parse:
+קבל:
+{
+  userId,
+  text,
+  source,
+  mode,
+  dateIso,
+  useAI?: boolean
+}
+
+אם useAI=true ו-AI parse enabled:
+נסה AI.
+אם הצליח:
+החזר:
+{
+  ok: true,
+  parser: "ai_structured",
+  tasks,
+  aiContext: {
+    scenarioType,
+    anchors,
+    questions,
+    assumptions,
+    warnings,
+    confidence
+  }
+}
+
+אם AI נכשל:
+fallback ל-parser הקיים.
+לא להחזיר 500.
+
+אם גם fallback נכשל:
+fallback DraftTask אחת מהטקסט המקורי.
+
+==================================================
+חלק 8: Natural Language Day Command API
+==================================================
+
+צור endpoint:
+
+POST /api/planner/day-command-preview
+
+body:
+{
+  userId: "default-user",
+  dateIso: "2026-05-12",
+  text: "נכנסה לי משימה חשובה ב-14:00, סדר לי את היום מחדש",
+  selectedTaskIds?: [],
+  nowIso?: string,
+  useAI?: true
+}
+
+התנהגות:
+1. טען existingTasks של userId/dateIso מה-DB.
+2. טען settings.
+3. שלח ל-interpretDayCommandWithAI.
+4. אם AI disabled/key missing:
+   החזר ok:false עם reason אבל לא crash.
+5. אם AI הצליח:
+   החזר preview בלבד.
+6. לא לשמור DB.
+7. לא למחוק.
+8. לא ליצור recurrence בפועל.
+
+Response:
+{
+  ok: true,
+  mode: "preview_only",
+  commandIntent,
+  proposedChanges: [
+    {
+      type,
+      targetTaskId,
+      title,
+      before,
+      after,
+      reason,
+      riskLevel,
+      requiresExplicitConfirm
+    }
+  ],
+  questions,
+  assumptions,
+  warnings
+}
+
+אם commandType ask_clarification:
+{
+  ok: true,
+  needsClarification: true,
+  questions: [...]
+}
+
+==================================================
+חלק 9: Apply Day Command Endpoint
+==================================================
+
+צור endpoint בטוח:
+
+POST /api/planner/apply-day-command
+
+body:
+{
+  userId,
+  dateIso,
+  operations,
+  confirm: true
+}
+
+חשוב:
+ה-endpoint הזה לא מקבל raw text.
+הוא מקבל רק operations שעברו preview ו-validation.
+
+התנהגות:
+1. validate userId/dateIso/operations.
+2. re-load tasks מה-DB.
+3. validate שה-targetTaskId עדיין קיים.
+4. validate שה-operation עדיין בטוחה.
+5. transaction.
+6. פעולות מותרות:
+   - create_task
+   - update_task
+   - reschedule_task
+   - duplicate_task
+   - delete_task soft delete בלבד
+7. create_recurrence:
+   אם recurringEngine קיים ובטוח, השתמש בו.
+   אם לא, החזר unsupported ולא לבצע.
+8. replan_day:
+   בשלב הזה, אם מורכב מדי, אל תבצע אוטומטית.
+   החזר suggestion להשתמש planner/schedule preview.
+9. כל שינוי יוצר LearningEvent מתאים:
+   - task_created
+   - task_rescheduled
+   - task_deleted
+   - task_duplicated
+   - day_command_applied
+
+אם פעולה אחת נכשלת:
+rollback מלא.
+
+==================================================
+חלק 10: AI status endpoints
+==================================================
+
+צור:
+
+server/routes/ai.ts
+
+חבר:
+app.use('/api/ai', aiRoutes)
+
+Endpoints:
+
+GET /api/ai/status
+מחזיר:
+{
+  ok,
+  enabled,
+  provider,
+  parseEnabled,
+  taskReportEnabled,
+  breakdownEnabled,
+  dayCommandEnabled,
+  hasOpenAIKey
+}
+
+לא להחזיר key.
+
+POST /api/ai/parse-preview
+POST /api/ai/task-report-preview
+POST /api/ai/breakdown-preview
+POST /api/ai/day-command-preview
+
+כולם preview בלבד.
+לא שומרים DB.
+
+==================================================
+חלק 11: Client API
+==================================================
+
+צור:
+
+src/lib/api/aiClient.ts
+
+פונקציות:
+- getAIStatus()
+- parsePreviewAI(payload)
+- taskReportPreviewAI(payload)
+- breakdownPreviewAI(payload)
+- dayCommandPreviewAI(payload)
+
+עדכן plannerClient אם מתאים:
+- dayCommandPreview(payload)
+- applyDayCommand(payload)
+
+==================================================
+חלק 12: UI מינימלי לשליטה על יום קיים
+==================================================
+
+הוסף ב-DayView או Planner page אזור קטן:
+
+כותרת:
+"תגיד לסינקו מה לשנות ביום הזה"
+
+שדה טקסט:
+לדוגמה:
+"נכנסה לי משימה חשובה ב-14:00, סדר מחדש את היום"
+
+כפתור:
+"נתח שינוי"
+
+בלחיצה:
+POST /api/planner/day-command-preview
+
+הצג Preview:
+"שינויים מוצעים"
+
+סוגי שינויים:
+- יצירה
+- עריכה
+- דחייה
+- מחיקה
+- שכפול
+- חזרה קבועה
+- תכנון מחדש
+
+לכל שינוי:
+- לפני
+- אחרי
+- סיבה
+- רמת סיכון
+- האם דורש אישור
+
+כפתורים:
+- אשר שינויים
+- בטל
+- ערוך ידנית
+
+אם יש delete:
+הצג אזהרה ברורה:
+"יש כאן מחיקה. המשימה תועבר למצב נמחק ולא תימחק לצמיתות."
+
+אם יש recurrence:
+הצג:
+"זו הצעת חזרתיות. אם המנוע החוזר עדיין לא מחובר, לא נשמור אותה עכשיו."
+
+אם needsClarification:
+הצג שאלות במקום preview.
+
+חשוב:
+אם AI לא פעיל או אין key:
+הצג:
+"AI לא פעיל כרגע. אפשר להמשיך להשתמש בתכנון הרגיל."
+
+==================================================
+חלק 13: Logging בטוח
+==================================================
+
+בשרת:
+הדפס רק:
+- provider
+- enabled
+- parser used
+- operation count
+- validation success/fail
+- fallback used
+- text length
+
+לא להדפיס:
+- API key
+- secrets
+- טקסט אישי מלא בלוג ארוך
+
+==================================================
+חלק 14: בדיקות חובה
+==================================================
+
+Build:
+1. npm run build
+
+AI status:
+2. GET /api/ai/status
+צריך להחזיר enabled/provider/hasOpenAIKey.
+
+AI disabled/key missing:
+3. אם OPENAI_API_KEY חסר:
+POST /api/planner/day-command-preview לא קורס.
+מחזיר הודעה ברורה.
+
+Parse:
+4. POST /api/planner/parse useAI=true עובד או fallback.
+
+Day command preview:
+5. הוראה:
+"נכנסה לי משימה חשובה ב-14:00 לשעה, סדר את היום מחדש"
+ציפייה:
+commandType replan_day או mixed_changes
+proposed create_task/anchor
+no DB write
+
+6. הוראה:
+"תמחק את להתקשר לדני"
+ציפייה:
+delete_task preview
+requiresExplicitConfirm=true
+no DB write
+
+7. הוראה:
+"תשכפל את קניות למחר"
+ציפייה:
+duplicate_task preview
+no DB write
+
+8. הוראה:
+"את משימות הבוקר תעשה כל יום ראשון עד חמישי"
+ציפייה:
+create_recurrence proposal
+לא ליצור ידנית מאות משימות
+
+9. הוראה לא ברורה:
+"תזיז את זה לאחר כך"
+ציפייה:
+needsClarification=true
+
+Apply:
+10. apply-day-command עם update_task תקין משנה DB ב-transaction.
+11. apply-day-command עם delete_task עושה soft delete בלבד.
+12. apply-day-command עם targetTaskId לא קיים עושה rollback.
+13. apply-day-command בלי confirm=true מחזיר 400.
+14. apply-day-command לא מקבל raw text.
+
+Regression:
+15. planner/schedule עדיין עובד.
+16. planner/apply-schedule עדיין עובד.
+17. planner/commit-draft-schedule עדיין עובד.
+18. planner/parse עדיין עובד.
+19. PlanningDraftPanel לא נשבר.
+20. TaskReportDialog לא נשבר.
+21. HomePage לא נשבר.
+22. DayView לא נשבר.
+23. Drag & Drop לא נשבר.
+24. Resize לא נשבר.
+25. Trust QA script עדיין עובר.
+
+פלט סופי:
+# דוח Sprint Pack 4ד - AI Reasoning + Day Command Layer
+
+## 1. מה נבדק לפני שינוי
+קובץ | למה נבדק | מסקנה
+
+## 2. החלטה ארכיטקטונית
+כתוב:
+- איך נבנתה שכבת AI Provider
+- איך AI מופעל לטסטים
+- איך AI לא שומר DB לבד
+- איך day-command-preview עובד
+- איך apply-day-command עובד
+- איך validators מגנים על סינקו
+- איך fallback עובד
+
+## 3. מה שונה
+קובץ | שינוי | למה
+
+## 4. מה גובה
+קובץ מקורי | קובץ גיבוי
+
+## 5. קבצי AI שנוצרו
+קובץ | תפקיד
+
+## 6. איך עובד Parse עם AI
+request
+→ AI
+→ schema
+→ validator
+→ DraftTasks
+→ fallback
+
+## 7. איך עובד Day Command
+טקסט חופשי
+→ AI intent
+→ operations
+→ preview
+→ confirm
+→ transaction
+
+## 8. אילו פעולות נתמכות
+טבלה:
+פעולה | preview | apply | הערה
+
+חובה לכלול:
+create
+update
+delete soft
+duplicate
+reschedule
+replan_day
+create_recurrence
+
+## 9. איך נשמר האמון
+רשום:
+- אין DB בלי אישור
+- אין מחיקה קשיחה
+- אין פעולה על target לא ברור
+- אין שיבוץ בעבר
+- אין learningBoost מה-AI
+- אין durationSuggestion מה-AI
+
+## 10. תוצאות build
+עבר / נכשל
+
+## 11. תוצאות API
+endpoint | תוצאה | הערה
+
+חובה:
+GET /api/ai/status
+POST /api/planner/day-command-preview
+POST /api/planner/apply-day-command
+POST /api/planner/parse useAI=true
+
+## 12. דוגמאות Day Command
+הצג JSON אמיתי של:
+- משימה חשובה שנכנסה
+- מחיקה
+- שכפול
+- חזרתיות
+- הוראה לא ברורה
+
+## 13. תוצאות UI
+פעולה | תוצאה | הערה
+
+## 14. תוצאות fallback
+כתוב:
+- key missing
+- AI disabled
+- invalid schema
+- ambiguous target
+
+## 15. Trust QA
+האם scripts/synco-trust-qa.sh עבר
+
+## 16. בדיקות שלא נשברו
+- planner/schedule
+- planner/apply-schedule
+- planner/commit-draft-schedule
+- planner/parse
+- PlanningDraftPanel
+- TaskReportDialog
+- HomePage
+- DayView
+- Drag & Drop
+- Resize
+- settings API
+- learning/events
+- syncTasksFromServer
+- localStorage migration
+
+## 17. דברים שלא שונו בכוונה
+- לא נוסף Auth
+- לא נוסף Google Calendar
+- לא נוסף Qdrant
+- לא נוסף web search
+- לא שונה DB כבד
+- לא שונה schedulePlanner עמוק
+- לא חובר Gemini/Claude בפועל
+- לא נבנה dashboard
+
+## 18. סיכונים שנשארו
+- צריך OPENAI_API_KEY ב-Secrets להפעלה אמיתית
+- AI עלול לטעות ולכן validators ו-preview חובה
+- recurring מלא תלוי במנוע הקיים
+- Gemini/Claude stubs בלבד
+- אין web knowledge
+- אין Qdrant memory
+- צריך לבדוק הרבה עברית חופשית אמיתית
+
+## 19. האם Sprint Pack 4ד סגור
+כן / לא
+
+## 20. השלב הבא
+אם נסגר:
+Sprint Pack 4ד.1 - Controlled AI Rollout:
+להפעיל AI כברירת מחדל רק ב-PlanningDraftPanel וב-Day Command, להציג הנחות ושאלות למשתמש, ולחזק בדיקות על הוראות עברית אמיתיות.

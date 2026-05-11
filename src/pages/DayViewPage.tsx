@@ -17,6 +17,7 @@ import {
   type TaskBlockMode,
 } from '@/components/task/AdaptiveTaskBlockContent';
 import { PlanMyDayButton } from '@/components/planner/PlanMyDayButton';
+import { DayCommandInputPanel } from '@/components/ai/DayCommandInputPanel';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -199,6 +200,7 @@ const DayViewPage = () => {
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [dragOffset, setDragOffset] = useState({ top: 0, height: 0 });
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showDayCommand, setShowDayCommand] = useState(false);
   const [createTime, setCreateTime] = useState<{ date: Date; hour: number; minute: number } | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDuration, setNewTaskDuration] = useState(60);
@@ -490,12 +492,34 @@ const DayViewPage = () => {
             </button>
           </div>
 
-          <div className="flex justify-center pb-2">
+          <div className="flex items-center justify-center gap-2 pb-2">
             <PlanMyDayButton
               date={selectedDate}
               tasks={getTasksForDay(selectedDate)}
             />
+            <Button
+              size="sm"
+              variant={showDayCommand ? 'default' : 'outline'}
+              onClick={() => setShowDayCommand(v => !v)}
+              className="flex items-center gap-1.5 text-xs"
+              data-testid="button-toggle-day-command"
+            >
+              <span>🤖</span>
+              {showDayCommand ? 'סגור פקודה' : 'פקודת יום'}
+            </Button>
           </div>
+
+          {showDayCommand && (
+            <div className="px-3 pb-3 border-t border-border bg-muted/20" data-testid="day-command-panel">
+              <DayCommandInputPanel
+                dateIso={format(selectedDate, 'yyyy-MM-dd')}
+                onApplied={() => {
+                  useTaskStore.getState().syncTasksFromServer?.();
+                }}
+                className="pt-3"
+              />
+            </div>
+          )}
         </header>
 
         {(() => {

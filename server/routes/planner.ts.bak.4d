@@ -1,7 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { chatCompletion } from '../brain/utils/openai-client.js';
-import { parsePlanningInputWithAI, interpretDayCommandWithAI } from '../ai/services/syncoAIReasoningService.js';
-import { AI_FEATURES } from '../ai/aiFeatureFlags.js';
 import { prisma } from '../lib/prisma.js';
 import { buildSchedule } from '../layers/task/planners/schedulePlanner.js';
 import {
@@ -59,45 +57,14 @@ const SYSTEM_PROMPT = `אתה עוזר תכנון משימות חכם בעברי
 
 router.post('/parse', async (req, res) => {
   try {
-    const { text, todayDate, existingTasks, userId, dateIso, useAI } = req.body;
+    const { text, todayDate, existingTasks } = req.body;
 
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ error: 'text is required' });
     }
 
-    const today = dateIso || todayDate || new Date().toISOString().split('T')[0];
+    const today = todayDate || new Date().toISOString().split('T')[0];
 
-    // ── Sprint 4ד: optional AI parse path ───────────────────────────────────
-    if (useAI === true && AI_FEATURES.enabled && AI_FEATURES.parseEnabled) {
-      try {
-        const aiResult = await parsePlanningInputWithAI({
-          text,
-          dateIso: today,
-          existingTasks: existingTasks ?? [],
-        });
-
-        if (aiResult.ok) {
-          return res.json({
-            ok: true,
-            parser: 'ai_structured',
-            tasks: aiResult.tasks,
-            aiContext: {
-              scenarioType: aiResult.scenarioType,
-              anchors:      aiResult.anchors,
-              questions:    aiResult.questions,
-              assumptions:  aiResult.assumptions,
-              warnings:     aiResult.warnings,
-              confidence:   aiResult.confidence,
-            },
-          });
-        }
-        console.warn('[planner/parse] AI parse failed, falling back. reason:', aiResult.reason);
-      } catch (aiErr: any) {
-        console.warn('[planner/parse] AI parse threw, falling back:', aiErr?.message);
-      }
-    }
-
-    // ── Existing parser (always works as fallback) ───────────────────────────
     const userMessage = `היום: ${today}
 ${existingTasks && existingTasks.length > 0 ? `\nמשימות קיימות ביומן:\n${existingTasks.map((t: any) => `- ${t.title} (${t.hour}:${String(t.minute || 0).padStart(2, '0')}, ${t.duration} דקות)`).join('\n')}` : ''}
 
@@ -106,20 +73,14 @@ ${existingTasks && existingTasks.length > 0 ? `\nמשימות קיימות בי�
 
 חלץ את כל המשימות:`;
 
-    let tasks: any[] = [];
-    try {
-      const content = await chatCompletion(SYSTEM_PROMPT, userMessage, {
-        temperature: 0.3,
-        jsonMode: true,
-      });
-      const parsed = JSON.parse(content || '{"tasks":[]}');
-      tasks = parsed.tasks || [];
-    } catch (fallbackErr: any) {
-      console.warn('[planner/parse] chatCompletion fallback also failed:', fallbackErr?.message);
-      tasks = [{ title: text.trim().slice(0, 100), duration: 30, priority: 'medium', flexibility: 'flexible' }];
-    }
+    const content = await chatCompletion(SYSTEM_PROMPT, userMessage, {
+      temperature: 0.3,
+      jsonMode: true,
+    });
 
-    res.json({ tasks, parser: 'rule_based' });
+    const parsed = JSON.parse(content || '{"tasks":[]}');
+
+    res.json({ tasks: parsed.tasks || [] });
   } catch (error: any) {
     console.error('Planner parse error:', error);
     res.status(500).json({ error: 'Failed to parse tasks', details: error.message });
@@ -715,318 +676,6 @@ router.post('/commit-draft-schedule', async (req: Request, res: Response) => {
       error: 'שגיאה ביצירת המשימות. לא נשמר שום דבר.',
       details: error.message,
     });
-  }
-});
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Sprint 4ד: POST /api/planner/day-command-preview
-// Natural language day command → AI intent → preview only (NO DB writes)
-// ══════════════════════════════════════════════════════════════════════════════
-router.post('/day-command-preview', async (req: Request, res: Response) => {
-  try {
-    const {
-      userId = 'default-user',
-      dateIso,
-      text,
-      selectedTaskIds,
-      nowIso,
-      useAI = true,
-    } = req.body;
-
-    if (!dateIso || typeof dateIso !== 'string') {
-      return res.status(400).json({ ok: false, error: 'dateIso is required' });
-    }
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      return res.status(400).json({ ok: false, error: 'text is required' });
-    }
-
-    if (!useAI || !AI_FEATURES.enabled || !AI_FEATURES.dayCommandEnabled) {
-      return res.json({
-        ok: false,
-        mode: 'preview_only',
-        reason: !AI_FEATURES.enabled ? 'ai_disabled' : 'day_command_disabled',
-        message: 'AI day commands are not enabled. Set SYNCO_AI_ENABLED=true and SYNCO_AI_DAY_COMMAND_ENABLED=true.',
-      });
-    }
-
-    // Load existing tasks for the day
-    const dayStart = new Date(`${dateIso}T00:00:00.000Z`);
-    const dayEnd   = new Date(`${dateIso}T23:59:59.999Z`);
-    const dbTasks  = await prisma.userTask.findMany({
-      where: { userId, deletedAt: null, startTime: { gte: dayStart, lte: dayEnd } },
-      select: { id: true, title: true, status: true, startTime: true, endTime: true, priority: true, flexibility: true, duration: true },
-    });
-
-    const existingTasks = dbTasks.map(t => ({
-      id:        t.id,
-      title:     t.title,
-      status:    t.status,
-      startTime: t.startTime?.toISOString() ?? null,
-      endTime:   t.endTime?.toISOString() ?? null,
-    }));
-
-    // Load user settings
-    const settings = await loadUserPlanningConfig(userId);
-
-    // Call AI reasoning service (no DB writes inside)
-    const aiResult = await interpretDayCommandWithAI({
-      userId,
-      dateIso,
-      text: text.trim(),
-      nowIso:          nowIso ?? new Date().toISOString(),
-      settings:        settings as unknown as Record<string, unknown>,
-      existingTasks,
-      selectedTaskIds: Array.isArray(selectedTaskIds) ? selectedTaskIds : [],
-    });
-
-    if (!aiResult.ok) {
-      return res.json({
-        ok: false,
-        mode: 'preview_only',
-        reason: aiResult.reason,
-        message: 'AI could not process this command. Please try again or rephrase.',
-        questions: 'questions' in aiResult ? aiResult.questions : [],
-        warnings:  'warnings'  in aiResult ? aiResult.warnings  : [],
-      });
-    }
-
-    // needsClarification path
-    if ('needsClarification' in aiResult && aiResult.needsClarification) {
-      return res.json({
-        ok: true,
-        mode: 'preview_only',
-        needsClarification: true,
-        questions:   aiResult.questions ?? [],
-        assumptions: aiResult.assumptions ?? [],
-        warnings:    aiResult.warnings ?? [],
-        commandIntent: {
-          commandType: aiResult.commandType,
-          targetScope: aiResult.targetScope,
-          confidence:  aiResult.confidence,
-        },
-      });
-    }
-
-    // Build proposedChanges summary for UI
-    const proposedChanges = aiResult.operations.map(op => ({
-      type:                  op.type,
-      operationId:           op.operationId,
-      targetTaskId:          op.targetTaskId ?? null,
-      title:                 op.targetTaskTitle ?? op.newTask?.['title'] ?? null,
-      before:                op.targetTaskId
-                               ? existingTasks.find(t => t.id === op.targetTaskId) ?? null
-                               : null,
-      after:                 op.patch ?? op.newTask ?? null,
-      recurrence:            op.recurrence ?? null,
-      reason:                op.reason,
-      riskLevel:             op.riskLevel,
-      requiresExplicitConfirm: op.requiresExplicitConfirm,
-    }));
-
-    return res.json({
-      ok: true,
-      mode: 'preview_only',
-      commandIntent: {
-        commandType:          aiResult.commandType,
-        targetScope:          aiResult.targetScope,
-        dateIso:              aiResult.dateIso ?? dateIso,
-        confidence:           aiResult.confidence,
-        requiresConfirmation: aiResult.requiresConfirmation,
-      },
-      proposedChanges,
-      questions:   aiResult.questions   ?? [],
-      assumptions: aiResult.assumptions ?? [],
-      warnings:    [...(aiResult.warnings ?? []), ...('validatorWarnings' in aiResult ? (aiResult as any).validatorWarnings ?? [] : [])],
-    });
-  } catch (error: any) {
-    console.error('POST /api/planner/day-command-preview error:', error);
-    res.status(500).json({ ok: false, error: 'Failed to preview day command', details: error.message });
-  }
-});
-
-// ══════════════════════════════════════════════════════════════════════════════
-// Sprint 4ד: POST /api/planner/apply-day-command
-// Accepts ONLY pre-validated operations from day-command-preview
-// No raw text accepted — runs Prisma $transaction
-// ══════════════════════════════════════════════════════════════════════════════
-router.post('/apply-day-command', async (req: Request, res: Response) => {
-  try {
-    const {
-      userId = 'default-user',
-      dateIso,
-      operations,
-      confirm,
-    } = req.body;
-
-    if (confirm !== true) {
-      return res.status(400).json({ ok: false, error: 'confirm=true is required for apply-day-command' });
-    }
-    if (!dateIso || typeof dateIso !== 'string') {
-      return res.status(400).json({ ok: false, error: 'dateIso is required' });
-    }
-    if (!Array.isArray(operations) || operations.length === 0) {
-      return res.status(400).json({ ok: false, error: 'operations must be a non-empty array' });
-    }
-
-    // Re-load day tasks from DB for safety re-validation
-    const dayStart = new Date(`${dateIso}T00:00:00.000Z`);
-    const dayEnd   = new Date(`${dateIso}T23:59:59.999Z`);
-    const dbTasks  = await prisma.userTask.findMany({
-      where: { userId, deletedAt: null, startTime: { gte: dayStart, lte: dayEnd } },
-    });
-    const taskMap = new Map(dbTasks.map(t => [t.id, t]));
-
-    const now = new Date();
-    const applied: string[] = [];
-    const skipped: { operationId: string; reason: string }[] = [];
-
-    // Build transaction operations
-    const txOps: Parameters<typeof prisma.$transaction>[0] extends Array<infer U> ? U[] : never[] = [];
-
-    for (const op of operations) {
-      const opId = op.operationId ?? 'unknown';
-
-      // Allowed types only
-      const allowedTypes = ['create_task', 'update_task', 'delete_task', 'duplicate_task', 'reschedule_task'];
-      if (!allowedTypes.includes(op.type)) {
-        skipped.push({ operationId: opId, reason: `operation type "${op.type}" requires separate handling or is read-only` });
-        continue;
-      }
-
-      if (op.targetTaskId && !taskMap.has(op.targetTaskId)) {
-        skipped.push({ operationId: opId, reason: `targetTaskId "${op.targetTaskId}" no longer exists` });
-        continue;
-      }
-
-      if (op.type === 'delete_task') {
-        if (!op.targetTaskId) {
-          skipped.push({ operationId: opId, reason: 'delete_task missing targetTaskId' });
-          continue;
-        }
-        (txOps as any[]).push(prisma.userTask.update({
-          where: { id: op.targetTaskId },
-          data:  { deletedAt: now },
-        }));
-        applied.push(opId);
-        continue;
-      }
-
-      if (op.type === 'update_task' || op.type === 'reschedule_task') {
-        if (!op.targetTaskId || !op.patch) {
-          skipped.push({ operationId: opId, reason: 'update/reschedule missing targetTaskId or patch' });
-          continue;
-        }
-        // No past scheduling guard
-        if (op.patch.startTime) {
-          const newStart = new Date(op.patch.startTime);
-          if (!isNaN(newStart.getTime()) && newStart < now) {
-            skipped.push({ operationId: opId, reason: 'reschedule would place task in the past — blocked' });
-            continue;
-          }
-        }
-        const allowedPatchKeys = ['title', 'startTime', 'endTime', 'duration', 'priority', 'flexibility', 'location', 'description', 'notes'];
-        const safePatch: Record<string, unknown> = {};
-        for (const k of allowedPatchKeys) {
-          if (op.patch[k] !== undefined) safePatch[k] = op.patch[k];
-        }
-        if (safePatch.startTime) safePatch.startTime = new Date(safePatch.startTime as string);
-        if (safePatch.endTime)   safePatch.endTime   = new Date(safePatch.endTime as string);
-        (txOps as any[]).push(prisma.userTask.update({ where: { id: op.targetTaskId }, data: safePatch }));
-        applied.push(opId);
-        continue;
-      }
-
-      if (op.type === 'create_task') {
-        const nt = op.newTask;
-        if (!nt?.title) {
-          skipped.push({ operationId: opId, reason: 'create_task missing newTask.title' });
-          continue;
-        }
-        const startDt = nt.startTime ? new Date(nt.startTime) : null;
-        const endDt   = nt.endTime   ? new Date(nt.endTime)   : null;
-        if (startDt && !isNaN(startDt.getTime()) && startDt < now) {
-          skipped.push({ operationId: opId, reason: 'create_task would place task in the past — blocked' });
-          continue;
-        }
-        const newId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        (txOps as any[]).push(prisma.userTask.create({ data: {
-          id:          newId,
-          userId,
-          title:       String(nt.title),
-          description: nt.description ? String(nt.description) : null,
-          location:    nt.location    ? String(nt.location)    : null,
-          startTime:   startDt && !isNaN(startDt.getTime()) ? startDt : new Date(`${dateIso}T09:00:00.000Z`),
-          endTime:     endDt   && !isNaN(endDt.getTime())   ? endDt   : new Date(`${dateIso}T09:30:00.000Z`),
-          duration:    nt.duration ? Number(nt.duration) : 30,
-          status:      'pending',
-          priority:    nt.priority    ?? 'medium',
-          flexibility: nt.flexibility ?? 'flexible',
-          isAllDay:    false,
-          isRecurring: false,
-          excludedDates: [],
-          tagsJson:    [],
-          historyJson: [],
-          createdFromJson: { source: 'day_command_ai', tsIso: now.toISOString() },
-        }}));
-        applied.push(opId);
-        continue;
-      }
-
-      if (op.type === 'duplicate_task') {
-        const src = op.targetTaskId ? taskMap.get(op.targetTaskId) : null;
-        if (!src) {
-          skipped.push({ operationId: opId, reason: 'duplicate_task source not found' });
-          continue;
-        }
-        const newId = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        const targetDate = op.patch?.['dateIso'] ? String(op.patch['dateIso']) : dateIso;
-        const startDt = new Date(src.startTime ? `${targetDate}T${src.startTime.toISOString().split('T')[1]}` : `${targetDate}T09:00:00.000Z`);
-        const endDt   = new Date(src.endTime   ? `${targetDate}T${src.endTime.toISOString().split('T')[1]}`   : `${targetDate}T09:30:00.000Z`);
-        (txOps as any[]).push(prisma.userTask.create({ data: {
-          id:          newId,
-          userId,
-          title:       src.title,
-          description: src.description,
-          location:    src.location,
-          startTime:   startDt,
-          endTime:     endDt,
-          duration:    src.duration,
-          status:      'pending',
-          priority:    src.priority,
-          flexibility: src.flexibility,
-          isAllDay:    src.isAllDay,
-          isRecurring: false,
-          excludedDates: [],
-          tagsJson:    [],
-          historyJson: [],
-          createdFromJson: { source: 'day_command_duplicate', tsIso: now.toISOString() },
-        }}));
-        applied.push(opId);
-        continue;
-      }
-    }
-
-    if (txOps.length === 0) {
-      return res.json({ ok: true, appliedCount: 0, skipped, message: 'No operations were applied.' });
-    }
-
-    await prisma.$transaction(txOps as any[]);
-
-    // Fire-and-forget learning event
-    prisma.learningEvent.create({
-      data: {
-        userId,
-        eventType: 'schedule_applied',
-        source:    'planner/apply-day-command',
-        dateIso,
-        metadata:  { appliedCount: applied.length, operationIds: applied, skipped },
-      },
-    }).catch((err: any) => console.warn('[apply-day-command] learning event failed (silent):', err?.message));
-
-    res.json({ ok: true, appliedCount: applied.length, applied, skipped });
-  } catch (error: any) {
-    console.error('POST /api/planner/apply-day-command error:', error);
-    res.status(500).json({ ok: false, error: 'Failed to apply day command. Nothing was changed.', details: error.message });
   }
 });
 
