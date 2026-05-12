@@ -1,10 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Calendar, Inbox, Clock, Plus, Check, Eye, Zap, AlertTriangle, Flag,
-  Sparkles, Loader2, X, Brain,
-} from 'lucide-react';
+import { Calendar, Inbox, Clock, Plus, Check, Eye, Zap, AlertTriangle, Flag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format, differenceInMinutes, differenceInHours, differenceInDays, addDays } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -21,7 +18,6 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { buildHomeGuidanceContext } from '@/lib/home/homeGuidanceEngine';
 import { Task } from '@/types/task';
 import { CompactSchedule, ScheduleToggle } from '@/components/layout/CompactSchedule';
-import { getTaskGuidanceAI } from '@/lib/api/aiClient';
 
 const HARD_BLOCKER_OPTIONS = ['low_energy', 'unclear_first_step', 'too_big', 'resistance', 'dependency_missing'];
 
@@ -109,54 +105,6 @@ const NextTaskBanner = ({ task, onClick }: { task: Task; onClick: () => void }) 
   );
 };
 
-// ─── AI Guidance Panel — shown only on explicit user click ────────────────────
-interface AIGuidancePanelProps {
-  explanation: string;
-  firstStep: string;
-  source: 'ai' | 'fallback';
-  onDismiss: () => void;
-}
-
-const AIGuidancePanel = ({ explanation, firstStep, source, onDismiss }: AIGuidancePanelProps) => (
-  <motion.div
-    initial={{ opacity: 0, y: 8 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: 8 }}
-    className="mt-2 p-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 text-sm space-y-2"
-    data-testid="ai-guidance-panel"
-    dir="rtl"
-  >
-    <div className="flex items-center justify-between gap-2">
-      <div className="flex items-center gap-1.5">
-        {source === 'ai' ? (
-          <Sparkles className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
-        ) : (
-          <Brain className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />
-        )}
-        <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
-          {source === 'ai' ? 'הסבר מ-AI' : 'הסבר'}
-        </span>
-      </div>
-      <button
-        onClick={onDismiss}
-        className="text-purple-400 hover:text-purple-600 transition-colors"
-        data-testid="button-dismiss-ai-guidance"
-      >
-        <X className="w-3.5 h-3.5" />
-      </button>
-    </div>
-    {explanation && (
-      <p className="text-sm text-purple-800 dark:text-purple-200 leading-relaxed">{explanation}</p>
-    )}
-    {firstStep && (
-      <div className="pt-1 border-t border-purple-200 dark:border-purple-800">
-        <p className="text-xs text-purple-600 dark:text-purple-400 font-medium mb-0.5">צעד ראשון:</p>
-        <p className="text-sm text-purple-800 dark:text-purple-200">{firstStep}</p>
-      </div>
-    )}
-  </motion.div>
-);
-
 const HomePage = () => {
   const navigate = useNavigate();
   const tasks = useTaskStore((state) => state.tasks);
@@ -172,14 +120,6 @@ const HomePage = () => {
   const [reportPreselect, setReportPreselect] = useState<string | undefined>(undefined);
   const [showIntroDialog, setShowIntroDialog] = useState(false);
   const [reportPendingAfterIntro, setReportPendingAfterIntro] = useState(false);
-
-  // AI guidance state — only populated on explicit user click ("למה עכשיו?")
-  const [aiGuidance, setAIGuidance] = useState<{
-    explanation: string;
-    firstStep: string;
-    source: 'ai' | 'fallback';
-  } | null>(null);
-  const [loadingAIGuidance, setLoadingAIGuidance] = useState(false);
 
   const now = useMemo(() => new Date(), []);
 
@@ -264,43 +204,6 @@ const HomePage = () => {
   const handleHardToStart = useCallback(() => {
     openReportDialog(HARD_BLOCKER_OPTIONS[0]);
   }, [openReportDialog]);
-
-  // "למה עכשיו?" — AI explanation on explicit click only.
-  // currentTask is NEVER modified here — display only.
-  const handleWhyNow = useCallback(async () => {
-    if (!currentTask) return;
-    setAIGuidance(null);
-    setLoadingAIGuidance(true);
-    try {
-      const result = await getTaskGuidanceAI({
-        taskTitle: currentTask.title,
-        taskDescription: currentTask.description ?? undefined,
-        startTime: format(currentTask.startTime, 'HH:mm'),
-      });
-      if (result.ok && result.explanation) {
-        setAIGuidance({
-          explanation: result.explanation,
-          firstStep: result.firstStep,
-          source: result.source,
-        });
-      } else {
-        // Fallback to rule-based guidance text
-        setAIGuidance({
-          explanation: guidance.whyNow.text,
-          firstStep: '',
-          source: 'fallback',
-        });
-      }
-    } catch {
-      setAIGuidance({
-        explanation: guidance.whyNow.text,
-        firstStep: '',
-        source: 'fallback',
-      });
-    } finally {
-      setLoadingAIGuidance(false);
-    }
-  }, [currentTask, guidance.whyNow.text]);
 
   const handleDialogConfirm = () => handleComplete(true);
   const handleDialogDeny = () => handleComplete(false);
@@ -469,18 +372,6 @@ const HomePage = () => {
               </p>
             )}
 
-            {/* "למה עכשיו?" — AI explanation, explicit click only */}
-            <AnimatePresence>
-              {aiGuidance && (
-                <AIGuidancePanel
-                  explanation={aiGuidance.explanation}
-                  firstStep={aiGuidance.firstStep}
-                  source={aiGuidance.source}
-                  onDismiss={() => setAIGuidance(null)}
-                />
-              )}
-            </AnimatePresence>
-
             <div className="flex items-center gap-2 mt-4" dir="rtl">
               <Button
                 variant="default"
@@ -510,22 +401,6 @@ const HomePage = () => {
                 data-testid="button-hard-to-start"
               >
                 קשה לי להתחיל
-              </Button>
-              {/* "למה עכשיו?" — AI button, explicit click, no auto-run */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1 text-xs text-muted-foreground"
-                onClick={handleWhyNow}
-                disabled={loadingAIGuidance}
-                data-testid="button-why-now-ai"
-              >
-                {loadingAIGuidance ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                )}
-                למה עכשיו?
               </Button>
               <Button
                 variant="ghost"

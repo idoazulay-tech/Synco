@@ -1,0 +1,733 @@
+Sprint Pack 4ד.1 בפרויקט Synco:
+AI-First Controlled Rollout בכל המקומות התפעוליים הרלוונטיים
+
+מטרה:
+להפעיל את שכבת ה-AI של סינקו בצורה רחבה יותר, לא רק כתשתית בדיקה, אלא כחלק אמיתי מהתפעול היומי של האפליקציה.
+
+המשתמש צריך להרגיש שסינקו באמת מבין אותו:
+- קלט חופשי למשימות
+- שינוי יום קיים בטקסט חופשי
+- דיווח מתוך משימה
+- פירוק משימות לצעדים
+- הסבר למה עכשיו
+- הבנת רצפי בוקר / יציאה / עוגנים
+- זיהוי כוונה: ליצור, לערוך, למחוק, לדחות, לשכפל, להפוך לחוזר
+- הצעת פעולה פרקטית
+
+אבל עדיין:
+AI מבין ומציע.
+סינקו בודק.
+המשתמש מאשר.
+רק אז DB משתנה.
+
+חשוב:
+בשלב הזה כן להפעיל AI כברירת מחדל במקומות התפעוליים, כל עוד יש API key.
+חיסכון בעלויות יבוא בשלב מאוחר יותר.
+כרגע המטרה היא לבדוק יכולות מרשימות ושימושיות אמיתית.
+
+השתמש במפתח:
+AI_INTEGRATIONS_OPENAI_API_KEY
+
+Feature flags להפעלה:
+SYNCO_AI_ENABLED=true
+SYNCO_AI_PROVIDER=openai
+SYNCO_AI_PARSE_ENABLED=true
+SYNCO_AI_TASK_REPORT_ENABLED=true
+SYNCO_AI_BREAKDOWN_ENABLED=true
+SYNCO_AI_DAY_COMMAND_ENABLED=true
+
+אם אין key:
+לא לקרוס.
+להציג fallback ברור.
+להמשיך לעבוד עם rule-based.
+
+אסור:
+אל תיתן ל-AI לשמור ישירות ל-DB.
+אל תיתן ל-AI למחוק ישירות.
+אל תיתן ל-AI לערוך משימה קיימת בלי Preview ואישור.
+אל תיתן ל-AI לשבץ סופית בלי Validators.
+אל תיתן ל-AI לעקוף No Past Scheduling.
+אל תיתן ל-AI לעקוף commit-draft-schedule.
+אל תיתן ל-AI להמציא learningBoost.
+אל תיתן ל-AI להמציא durationSuggestion כאילו זה דאטה היסטורי.
+אל תיתן ל-AI להסיק רגשות בלי שהמשתמש אמר.
+אל תוסיף Auth.
+אל תוסיף Google Calendar.
+אל תוסיף Qdrant.
+אל תוסיף web search.
+אל תבנה dashboard.
+אל תשנה DB בצורה כבדה.
+אל תשנה schedulePlanner עמוק.
+אל תשנה buildSchedule.
+אל תשנה priorityScoreEngine.
+אל תשבור planner/schedule.
+אל תשבור planner/parse.
+אל תשבור planner/apply-schedule.
+אל תשבור planner/commit-draft-schedule.
+אל תשבור day-command-preview.
+אל תשבור apply-day-command.
+אל תשבור PlanningDraftPanel.
+אל תשבור TaskReportDialog.
+אל תשבור HomePage.
+אל תשבור DayView.
+אל תשבור Drag & Drop.
+אל תשבור Resize.
+אל תשבור Trust QA script.
+
+רקע:
+Sprint Pack 4ד כבר בנה:
+- server/ai/
+- OpenAI Provider
+- AI Feature Flags
+- Zod Schemas
+- Synco AI Validators
+- /api/ai/status
+- /api/planner/day-command-preview
+- /api/planner/apply-day-command
+- /api/planner/parse עם useAI:true
+- fallback בטוח
+- Trust QA 40/40
+
+עכשיו צריך לחבר את ה-AI בפועל למקומות התפעוליים באפליקציה.
+
+לפני שינוי:
+בדוק את הקבצים:
+- src/components/planner/PlanningDraftPanel.tsx
+- src/lib/api/plannerClient.ts
+- src/lib/api/aiClient.ts
+- src/pages/DayViewPage.tsx
+- src/components/planner/DayCommandInputPanel.tsx אם קיים
+- src/components/task/TaskReportDialog.tsx
+- src/pages/HomePage.tsx
+- src/pages/TaskDetailPage.tsx
+- src/store/planningDraftStore.ts
+- src/store/taskStore.ts
+- server/routes/planner.ts
+- server/routes/ai.ts
+- server/ai/services/syncoAIReasoningService.ts
+- server/ai/validators/syncoAIOutputValidator.ts
+- scripts/synco-trust-qa.sh
+
+גבה כל קובץ שאתה משנה.
+
+==================================================
+חלק 1: AI Status גלובלי
+==================================================
+
+צור או עדכן client helper:
+
+src/lib/api/aiClient.ts
+
+ודא שיש:
+- getAIStatus()
+- parsePreviewAI()
+- taskReportPreviewAI()
+- breakdownPreviewAI()
+- dayCommandPreviewAI()
+
+בממשק, בכל אזור שמשתמש ב-AI, הצג badge קטן:
+
+אם AI פעיל:
+"AI פעיל"
+
+אם AI כבוי:
+"AI לא פעיל, סינקו משתמש בניתוח רגיל"
+
+אם key חסר:
+"AI לא מחובר כרגע"
+
+לא להעמיס על המסך.
+
+==================================================
+חלק 2: PlanningDraftPanel משתמש ב-AI כברירת מחדל
+==================================================
+
+כאשר המשתמש לוחץ:
+- "נתח ותכנן"
+- "נתח והוסף לרשימה"
+
+שלח ל-/api/planner/parse:
+
+{
+  userId,
+  text,
+  source,
+  mode: "draft",
+  dateIso,
+  useAI: true
+}
+
+התנהגות:
+1. אם response.parser = "ai_structured":
+   הצג:
+   "סינקו ניתח את הקלט עם AI"
+
+2. אם response.parser = "rule_based_fallback":
+   הצג:
+   "ה-AI לא הצליח לנתח בצורה בטוחה, אז השתמשתי בניתוח הרגיל."
+
+3. אם יש aiContext:
+   הצג אזור:
+   "מה סינקו הבין"
+
+   הצג:
+   - scenarioType
+   - anchors
+   - assumptions
+   - questions
+   - warnings
+   - confidence
+
+4. אם יש שאלות:
+   הצג:
+   "שאלות שכדאי להשלים"
+   בשלב הזה אפשר רק להציג את השאלות.
+   אם קל, הוסף שדה תשובה שמוסיף קלט נוסף לרשימת הטיוטות.
+
+5. אם יש הנחות:
+   הצג אותן כהנחות בלבד:
+   "סינקו מניח ש..."
+   לא להציג אותן כאמת.
+
+6. לא לשמור DB.
+רק DraftTasks.
+
+==================================================
+חלק 3: AI Parse צריך להבין רצפי חיים אמיתיים
+==================================================
+
+ודא שה-prompt וה-schema תומכים בקלטים כמו:
+
+1.
+"אני קם ב-6 ויוצא לאוטובוס של 7:45. צריך לצחצח שיניים, להתלבש, להכין אוכל לתיק, להוציא את קיטו ולצאת."
+
+ציפייה:
+- scenarioType = morning_routine
+- wake_time anchor
+- bus/departure anchor
+- durations לא כולם 30
+- assumptions
+- questions אם חסר זמן הליכה לתחנה
+
+2.
+"אני יוצא ליהוד ב-18:30. צריך לארגן תיק, להעיר את שני, להחליט אם קיטו בא איתנו."
+
+ציפייה:
+- departure_preparation
+- anchor ב-18:30
+- prep tasks לפני anchor
+- dependencies / order suggestions
+
+3.
+"יש לי פגישה עם לקוח ב-10 לשעה וחצי, אחרי זה לשלוח דוח, ואז לאסוף את הילדים."
+
+ציפייה:
+- anchors
+- tasks
+- time windows
+- assumptions
+- no crash even if input חלקי
+
+אם AI נותן 30 דקות לכולן בלי סיבה:
+ה-validator או post-processing צריך להוסיף warning:
+"AI returned generic durations"
+ואז להפעיל duration inference / blueprint fallback.
+
+==================================================
+חלק 4: TaskReportDialog משתמש ב-AI לניתוח דיווח
+==================================================
+
+כאשר המשתמש שולח דיווח מתוך משימה:
+
+Input:
+- task
+- selectedOption
+- freeText
+- nowIso
+- settings
+- dayContext
+
+אם SYNCO_AI_TASK_REPORT_ENABLED=true:
+שלח ל-analyzeTaskReportWithAI.
+
+אם AI מצליח:
+הצג:
+- normalizedCategory
+- userIntention
+- immediateSuggestion
+- suggestedActions
+- followUpQuestions
+- taskMeaning
+- consequenceIfNotDone
+- assumptions
+
+אם AI נכשל:
+fallback ל-taskReportAnalyzer הקיים.
+
+חשוב:
+כל ניתוח נשאר task_only.
+אסור להציג דפוס כללי על המשתמש מדיווח אחד.
+
+שפה:
+מותר:
+- "ביחס למשימה הזאת..."
+- "דיווחת ש..."
+- "יכול להיות..."
+- "מה הכי קרוב?"
+
+אסור:
+- "אתה מתחמק"
+- "אתה מתרץ"
+- "אתה מפחד"
+- "אתה תמיד"
+
+==================================================
+חלק 5: AI Breakdown פעיל במשימות
+==================================================
+
+כאשר המשתמש בוחר:
+- "לא ברור לי הצעד הראשון"
+- "המשימה גדולה מדי"
+- "אני צריך משהו לפני"
+- או לוחץ "פרק לי את המשימה"
+
+אם SYNCO_AI_BREAKDOWN_ENABLED=true:
+שלח ל-buildTaskBreakdownWithAI.
+
+ה-AI צריך להחזיר:
+- goal
+- expectedOutcome
+- resourcesNeeded
+- prerequisites
+- steps
+- possibleBlockers
+- clarifyingQuestions
+- assumptions
+- confidence
+
+הצג ב-TaskReportDialog:
+"סינקו פירק את המשימה לצעד ראשון"
+
+כפתורים:
+- התחל מהצעד הראשון
+- הוסף לתיאור המשימה
+- זה לא מתאים, אשנה ידנית
+- שאל אותי שאלה אחת
+
+חשוב:
+לא לעדכן את המשימה אוטומטית.
+רק אם המשתמש לוחץ "הוסף לתיאור המשימה", ורק אם updateTask בטוח.
+
+אם AI נכשל:
+fallback ל-taskOperationalBlueprintEngine הקיים.
+
+==================================================
+חלק 6: HomePage מקבל AI Guidance עדין
+==================================================
+
+ב-HomePage, לא להפעיל AI בכל render.
+
+הפעל AI רק באחד מהמקרים:
+1. המשתמש לוחץ "למה עכשיו?"
+2. המשתמש לוחץ "עזור לי להתחיל"
+3. המשתמש לוחץ "דיווח"
+4. המשתמש לוחץ "פרק לי"
+
+לא לקרוא AI כל שנייה.
+
+במסך הבית:
+- Home Guidance rule-based עדיין קובע currentTask/nextTask.
+- AI יכול לעזור בניסוח הסבר או צעד ראשון רק לאחר פעולה של המשתמש.
+- אם AI נכשל, הצג הסבר rule-based.
+
+חוק:
+AI לא משנה currentTask.
+AI לא בוחר nextTask.
+AI רק מסביר / מפרק / מציע פעולה.
+
+==================================================
+חלק 7: Day Command פעיל ב-DayView
+==================================================
+
+באזור "פקודת יום 🤖":
+
+שדה:
+"תגיד לסינקו מה לשנות ביום הזה"
+
+כפתור:
+"נתח שינוי"
+
+בלחיצה:
+POST /api/planner/day-command-preview
+
+הצג:
+"שינויים שסינקו מציע"
+
+לכל שינוי:
+- סוג פעולה
+- משימה יעד
+- לפני
+- אחרי
+- סיבה
+- riskLevel
+- requiresExplicitConfirm
+
+אם needsClarification:
+הצג שאלות ולא כפתור אישור.
+
+אם יש delete_task:
+חובה להציג:
+"המשימה תועבר למצב נמחק, לא תימחק לצמיתות."
+
+אם יש create_recurrence:
+חובה להציג:
+"זו הצעת חזרתיות. לא ניצור הרבה משימות בלי אישור ברור."
+
+כפתורים:
+- אשר שינויים
+- בטל
+- ערוך ידנית
+
+אשר שינויים:
+קורא /api/planner/apply-day-command עם:
+{
+  userId,
+  dateIso,
+  operations,
+  confirm: true
+}
+
+אם הצליח:
+- הצג "השינויים נשמרו"
+- syncTasksFromServer()
+- רענן DayView
+
+אם נכשל:
+- הצג שגיאה
+- לא למחוק Preview
+- אם rollback:
+  "שום שינוי לא נשמר."
+
+==================================================
+חלק 8: AI תומך בפעולות יום
+==================================================
+
+Day Command צריך לתמוך ב-preview של:
+
+1. create_task
+דוגמה:
+"נכנסה לי משימה חשובה ב-14:00 לשעה"
+
+2. update_task
+דוגמה:
+"שנה את הכביסה ל-20 דקות"
+
+3. delete_task
+דוגמה:
+"תמחק את להתקשר לדני"
+
+4. duplicate_task
+דוגמה:
+"תשכפל את קניות למחר"
+
+5. reschedule_task
+דוגמה:
+"תדחה את להוציא את קיטו לאחרי המקלחת"
+
+6. create_recurrence
+דוגמה:
+"את משימות הבוקר תעשה כל יום ראשון עד חמישי"
+
+7. partial_repeat
+דוגמה:
+"רק את המשימות של הבוקר תעשה כל יום"
+
+8. replan_day
+דוגמה:
+"נכנסה לי משימה דחופה, סדר מחדש את מה שאחרי 14:00"
+
+9. ask_clarification
+דוגמה:
+"תזיז את זה לאחר כך"
+
+אם target לא ברור:
+לא לנחש.
+שאל שאלה.
+
+==================================================
+חלק 9: AI Cost לא מטופל עכשיו, אבל בלי קריאות מיותרות
+==================================================
+
+בשלב הזה לא עושים אופטימיזציה עמוקה לעלויות.
+אבל כן להימנע מקריאות מיותרות:
+- לא לקרוא AI בכל render
+- לא לקרוא AI בכל drag
+- לא לקרוא AI בכל שינוי קטן בשדה
+- כן לקרוא AI בלחיצה מפורשת:
+  - נתח ותכנן
+  - נתח שינוי
+  - שלח דיווח
+  - פרק משימה
+
+==================================================
+חלק 10: Safety ו-Validators נשארים מעל AI
+==================================================
+
+ודא שכל תוצאה של AI עוברת:
+- Zod schema validation
+- Synco AI Output Validator
+- No Past checks
+- target validation
+- risk validation
+- explicit confirmation validation
+
+אסור:
+- AI לא מוסיף learningBoost
+- AI לא מוסיף durationSuggestion היסטורי
+- AI לא מייצר רגשות מומצאים
+- AI לא משנה DB
+- AI לא מוחק פיזית
+- AI לא יוצר recurrence בפועל בלי אישור
+
+==================================================
+חלק 11: Fallback UX
+==================================================
+
+אם AI disabled:
+"AI לא פעיל כרגע, סינקו משתמש בניתוח הרגיל."
+
+אם key missing:
+"AI לא מחובר כרגע. אפשר להמשיך להשתמש בתכנון הרגיל."
+
+אם invalid schema:
+"סינקו לא הצליח להבין את ההוראה בצורה בטוחה. אפשר לנסח שוב."
+
+אם AI timeout:
+"הניתוח לקח יותר מדי זמן. אפשר לנסות שוב או להמשיך ידנית."
+
+לא להציג stack trace למשתמש.
+
+==================================================
+חלק 12: בדיקות חובה
+==================================================
+
+Build:
+1. npm run build
+
+AI status:
+2. GET /api/ai/status
+ציפייה:
+enabled=true
+provider=openai
+hasOpenAIKey=true
+parseEnabled=true
+taskReportEnabled=true
+breakdownEnabled=true
+dayCommandEnabled=true
+
+PlanningDraftPanel:
+3. "נתח ותכנן" שולח useAI:true
+4. קלט רצף בוקר מחזיר ai_structured
+5. aiContext מוצג
+6. assumptions/questions/warnings מוצגים
+7. fallback עובד אם AI נכשל
+
+TaskReportDialog:
+8. דיווח freeText נשלח ל-AI
+9. AI analysis מוצג
+10. task_only נשמר
+11. שפה לא מאשימה
+12. fallback rule-based עובד
+
+Breakdown:
+13. "לתלות כביסה" מקבל פירוק AI או fallback blueprint
+14. "לשלוח דוח ללקוח" מקבל steps
+15. "לארגן תיק ליציאה" מקבל steps
+16. אין עדכון משימה בלי אישור
+
+HomePage:
+17. Home לא קורא AI בכל render
+18. לחיצה על "למה עכשיו" או "עזור לי להתחיל" מפעילה AI או fallback
+19. currentTask לא משתנה בגלל AI
+
+Day Command:
+20. "נכנסה לי משימה חשובה ב-14:00 לשעה, סדר מחדש"
+מחזיר preview בלבד
+
+21. "תמחק את להתקשר לדני"
+מחזיר delete preview + אישור מפורש
+
+22. "תשכפל את קניות למחר"
+מחזיר duplicate preview
+
+23. "את משימות הבוקר תעשה כל יום ראשון עד חמישי"
+מחזיר recurrence proposal
+
+24. "תזיז את זה לאחר כך"
+מחזיר needsClarification
+
+Apply:
+25. apply-day-command עובד רק עם confirm:true
+26. apply-day-command בלי confirm מחזיר 400
+27. target לא קיים גורם rollback
+28. delete הוא soft delete בלבד
+29. recurrence לא יוצר מאות משימות בלי אישור
+
+Regression:
+30. planner/schedule עדיין עובד
+31. planner/apply-schedule עדיין עובד
+32. planner/commit-draft-schedule עדיין עובד
+33. planner/parse עדיין עובד
+34. PlanningDraftPanel לא נשבר
+35. TaskReportDialog לא נשבר
+36. HomePage לא נשבר
+37. DayView לא נשבר
+38. Drag & Drop לא נשבר
+39. Resize לא נשבר
+40. Trust QA script עדיין עובר
+
+פלט סופי:
+# דוח Sprint Pack 4ד.1 - AI-First Controlled Rollout
+
+## 1. מה נבדק לפני שינוי
+קובץ | למה נבדק | מסקנה
+
+## 2. החלטה ארכיטקטונית
+כתוב:
+- איפה AI מופעל עכשיו בפועל
+- למה AI פעיל כברירת מחדל עם key
+- איך AI נשאר תחת Preview ואישור
+- איך נמנעות קריאות מיותרות
+- איך fallback עובד
+- איך validators נשארים מעל AI
+
+## 3. מה שונה
+קובץ | שינוי | למה
+
+## 4. מה גובה
+קובץ מקורי | קובץ גיבוי
+
+## 5. איך AI פועל בכל אזור
+טבלה:
+אזור | מה AI עושה | מה AI לא עושה | fallback
+
+חובה לכלול:
+- PlanningDraftPanel
+- TaskReportDialog
+- Breakdown
+- HomePage
+- Day Command
+
+## 6. איך AI Parse מוצג למשתמש
+input
+→ useAI:true
+→ aiContext
+→ DraftTasks
+→ assumptions/questions/warnings
+
+## 7. איך Task Report AI עובד
+דיווח
+→ AI analysis
+→ task_only
+→ הצעה
+→ LearningEvent
+→ fallback
+
+## 8. איך Breakdown AI עובד
+משימה
+→ steps
+→ assumptions
+→ הצגה
+→ אין עדכון בלי אישור
+
+## 9. איך Day Command עובד
+טקסט חופשי
+→ intent
+→ operations
+→ preview
+→ confirm
+→ transaction
+
+## 10. איך נשמר האמון
+- אין DB בלי אישור
+- אין מחיקה קשיחה
+- אין פעולה על target לא ברור
+- אין הנחות כאמת
+- אין רגשות מומצאים
+- אין learningBoost מה-AI
+- אין durationSuggestion מה-AI
+
+## 11. תוצאות build
+עבר / נכשל
+
+## 12. תוצאות API
+endpoint | תוצאה | הערה
+
+## 13. תוצאות UI
+פעולה | תוצאה | הערה
+
+## 14. דוגמאות AI אמיתיות
+הצג לפחות 8 דוגמאות:
+- רצף בוקר
+- יציאה לאוטובוס
+- דיווח משימה
+- פירוק משימה
+- משימה דחופה שנכנסה
+- מחיקה
+- שכפול
+- חזרתיות
+- הוראה עמומה
+
+## 15. תוצאות fallback
+- AI disabled
+- key missing
+- invalid schema
+- timeout
+- ambiguous command
+
+## 16. Trust QA
+האם scripts/synco-trust-qa.sh עבר
+
+## 17. בדיקות שלא נשברו
+- planner/schedule
+- planner/apply-schedule
+- planner/commit-draft-schedule
+- planner/parse
+- PlanningDraftPanel
+- TaskReportDialog
+- HomePage
+- DayView
+- Drag & Drop
+- Resize
+- settings API
+- learning/events
+- syncTasksFromServer
+- localStorage migration
+
+## 18. דברים שלא שונו בכוונה
+- לא נוסף Auth
+- לא נוסף Google Calendar
+- לא נוסף Qdrant
+- לא נוסף web search
+- לא שונה DB כבד
+- לא שונה schedulePlanner עמוק
+- לא חובר Gemini/Claude בפועל
+- לא נבנה dashboard
+- לא נעשתה אופטימיזציית עלויות
+
+## 19. סיכונים שנשארו
+- AI יכול לטעות ולכן Preview חובה
+- עלויות עדיין לא עברו אופטימיזציה
+- צריך עוד בדיקות עברית אמיתית
+- recurrence מלא תלוי במנוע הקיים
+- אין web knowledge
+- אין Qdrant memory
+- אין Auth
+
+## 20. האם Sprint Pack 4ד.1 סגור
+כן / לא
+
+## 21. השלב הבא
+אם נסגר:
+Sprint Pack 4ה - AI Real-Life Hebrew Test Pack:
+בדיקות עומק עם 50 הוראות עברית אמיתיות, תיקון prompts/schemas/validators לפי כשלים, בלי לבנות פיצ׳רים חדשים.

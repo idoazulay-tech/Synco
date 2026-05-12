@@ -1,9 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Sparkles, Send, Loader2, ChevronDown, ChevronUp,
-  AlertTriangle, CheckCircle2, Trash2, Copy, RefreshCw, HelpCircle, X, Info,
-} from 'lucide-react';
+import { Sparkles, Send, Loader2, ChevronDown, ChevronUp, AlertTriangle, CheckCircle2, Trash2, Copy, RefreshCw, HelpCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -40,27 +37,6 @@ const RISK_COLORS: Record<string, string> = {
   medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
   high:   'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
 };
-
-// ─── Inline notices per operation type ─────────────────────────────────────────
-function OperationNotice({ op }: { op: DayCommandProposedChange }) {
-  if (op.type === 'delete_task') {
-    return (
-      <div className="flex items-start gap-1.5 mt-1.5 px-2 py-1.5 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-xs text-orange-700 dark:text-orange-300">
-        <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-        <span>המשימה תועבר למצב נמחק — ניתן לשחזר מהגדרות</span>
-      </div>
-    );
-  }
-  if (op.type === 'create_recurrence') {
-    return (
-      <div className="flex items-start gap-1.5 mt-1.5 px-2 py-1.5 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 text-xs text-purple-700 dark:text-purple-300">
-        <RefreshCw className="w-3 h-3 flex-shrink-0 mt-0.5" />
-        <span>זו הצעת חזרתיות בלבד — לא תיווצר מייד, דרוש אישור נוסף</span>
-      </div>
-    );
-  }
-  return null;
-}
 
 function OperationCard({
   op,
@@ -105,9 +81,6 @@ function OperationCard({
             )}
           </div>
           <p className="text-xs text-muted-foreground mt-1">{op.reason}</p>
-
-          {/* Inline notice for delete / recurrence */}
-          <OperationNotice op={op} />
 
           {(op.before || op.after || op.recurrence) && (
             <button
@@ -252,23 +225,11 @@ export function DayCommandInputPanel({ dateIso, onApplied, className }: Props) {
   const hasChanges = !!preview?.proposedChanges?.length;
   const selectedCount = selectedOps.size;
 
-  // Count special operation types for summary notices
-  const deleteCount = preview?.proposedChanges?.filter(op => op.type === 'delete_task').length ?? 0;
-  const recurrenceCount = preview?.proposedChanges?.filter(op => op.type === 'create_recurrence').length ?? 0;
-
   return (
     <div className={cn('flex flex-col gap-3', className)} dir="rtl">
-      {/* Header with AI badge */}
       <div className="flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-purple-500 flex-shrink-0" />
         <span className="text-sm font-medium text-foreground">פקודת יום חופשית</span>
-        <Badge
-          variant="outline"
-          className="text-[10px] px-1.5 py-0 border-purple-300 text-purple-600 dark:text-purple-400 dark:border-purple-700"
-          data-testid="badge-ai-active"
-        >
-          AI
-        </Badge>
         {hasPreview && (
           <button
             onClick={() => { setPreview(null); setSelectedOps(new Set()); }}
@@ -315,28 +276,6 @@ export function DayCommandInputPanel({ dateIso, onApplied, className }: Props) {
             exit={{ opacity: 0, y: -8 }}
             className="flex flex-col gap-3"
           >
-            {/* Summary notices for delete / recurrence */}
-            {(deleteCount > 0 || recurrenceCount > 0) && (
-              <div className="space-y-1.5">
-                {deleteCount > 0 && (
-                  <div className="flex items-start gap-1.5 px-3 py-2 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-xs text-orange-700 dark:text-orange-300">
-                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                    <span>
-                      {deleteCount === 1
-                        ? 'פעולה אחת כוללת מחיקת משימה — המשימה תועבר למצב נמחק'
-                        : `${deleteCount} פעולות כוללות מחיקת משימות — המשימות יועברו למצב נמחק`}
-                    </span>
-                  </div>
-                )}
-                {recurrenceCount > 0 && (
-                  <div className="flex items-start gap-1.5 px-3 py-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 text-xs text-purple-700 dark:text-purple-300">
-                    <RefreshCw className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                    <span>הצעות חזרתיות הן הצעות בלבד — לא ייוצרו מייד, דרוש אישור נוסף</span>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Warnings / Assumptions */}
             {(preview.warnings?.length > 0 || preview.assumptions?.length > 0) && (
               <div className="text-xs space-y-1">

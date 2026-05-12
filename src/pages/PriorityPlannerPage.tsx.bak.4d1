@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mic, MicOff, Loader2,
   ChevronLeft, Clock, Calendar, Zap,
-  Sparkles, AlertTriangle, HelpCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
@@ -17,7 +16,6 @@ import { usePlanningDraftStore } from '@/store/planningDraftStore';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { PlanningDraftPanel } from '@/components/planner/PlanningDraftPanel';
-import { parsePreviewAI, type AIParseContext } from '@/lib/api/aiClient';
 
 type PlannerStep = 'input' | 'analyzing' | 'done';
 
@@ -31,12 +29,11 @@ export default function PriorityPlannerPage() {
     draftTasks,
   } = usePlanningDraftStore();
 
-  const [step, setStep]             = useState<PlannerStep>('input');
-  const [inputText, setInputText]   = useState('');
+  const [step, setStep]           = useState<PlannerStep>('input');
+  const [inputText, setInputText] = useState('');
   const [isListening, setIsListening]   = useState(false);
   const [liveInterim, setLiveInterim]   = useState('');
   const [isParsing, setIsParsing]       = useState(false);
-  const [lastAIContext, setLastAIContext] = useState<AIParseContext | null>(null);
 
   const recognitionRef  = useRef<any>(null);
   const sessionFinalRef = useRef('');
@@ -111,51 +108,43 @@ export default function PriorityPlannerPage() {
     setIsListening(true);
   }, [toast]);
 
-  // Parse text using AI (useAI:true) → add results to the draft store
+  // Parse text and add results to the draft store
   const parseAndAddToDrafts = async (text: string) => {
     if (!text.trim()) return;
     if (isListening) stopListening();
     setIsParsing(true);
 
     try {
-      const result = await parsePreviewAI({
-        text,
-        dateIso: today,
-        existingTasks,
+      const res = await fetch('/api/planner/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, todayDate: today, existingTasks }),
       });
 
-      if (!result.ok || !result.tasks || result.tasks.length === 0) {
+      if (!res.ok) throw new Error('שגיאת שרת');
+      const data = await res.json();
+
+      if (!data.tasks || data.tasks.length === 0) {
         toast({ title: 'לא נמצאו משימות בטקסט', variant: 'destructive' });
         return;
       }
 
-      // Save AI context for display in draft panel
-      if (result.aiContext) {
-        setLastAIContext(result.aiContext);
-      }
-
-      // Determine source label based on parser used
-      const source = result.parser === 'ai_structured' ? 'ai_parse' as const : 'text' as const;
-
-      const newDrafts = result.tasks.map((t: any) => ({
+      // Stage 2.5א: add to draft store (not create UserTasks yet)
+      const newDrafts = data.tasks.map((t: any) => ({
         title:          t.title || 'משימה ללא שם',
         durationMinutes: t.duration || 30,
         priority:       t.priority || 'medium',
         flexibility:    t.flexibility || 'flexible',
         dateIso:        t.date || today,
-        startTime:      t.hour != null
-          ? `${String(t.hour).padStart(2, '0')}:${String(t.minute ?? 0).padStart(2, '0')}`
-          : undefined,
+        startTime:      t.hour != null ? `${String(t.hour).padStart(2, '0')}:${String(t.minute ?? 0).padStart(2, '0')}` : undefined,
         notes:          t.notes || undefined,
         location:       t.location || undefined,
-        source,
+        source:         'ai_parse' as const,
         rawInput:       text,
       }));
 
       addDraftTasks(newDrafts);
-
-      const parserLabel = result.parser === 'ai_structured' ? ' (AI)' : '';
-      toast({ title: `נוספו ${newDrafts.length} משימות לרשימה${parserLabel}` });
+      toast({ title: `נוספו ${newDrafts.length} משימות לרשימה` });
     } catch {
       toast({ title: 'שגיאה בניתוח', description: 'נסה שנית', variant: 'destructive' });
     } finally {
@@ -283,12 +272,11 @@ export default function PriorityPlannerPage() {
                 </Card>
               )}
 
-              {/* Stage 2.5א + Sprint 4ד.1: Draft panel with AI context */}
+              {/* Stage 2.5א: Draft panel — shown when there are pending drafts */}
               <PlanningDraftPanel
                 onDone={() => setStep('done')}
                 onParseText={parseAndAddToDrafts}
                 isParsing={isParsing}
-                aiParseContext={lastAIContext ?? undefined}
               />
             </motion.div>
           )}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Mic, ChevronLeft, CheckCircle2, AlertCircle, Loader2, Sparkles, Brain } from 'lucide-react';
+import { X, Mic, ChevronLeft, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Task } from '@/types/task';
@@ -13,17 +13,8 @@ import { useTaskStore } from '@/store/taskStore';
 import { format } from 'date-fns';
 import { he } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import {
-  taskReportPreviewAI,
-  breakdownPreviewAI,
-  type TaskReportAIAnalysis,
-  type AIBreakdown,
-} from '@/lib/api/aiClient';
 
 const USER_ID = 'default-user';
-
-// Options that trigger a breakdown request
-const BREAKDOWN_OPTIONS = new Set(['unclear_first_step', 'too_big', 'dependency_missing']);
 
 type DialogStep = 'select' | 'freetext' | 'result';
 
@@ -40,13 +31,8 @@ export const TaskReportDialog = ({ task, onClose, preselectedOption }: TaskRepor
   const [showSaveCustom, setShowSaveCustom] = useState(false);
   const [customSaved, setCustomSaved] = useState(false);
   const [analysis, setAnalysis] = useState<TaskReportAnalysis | null>(null);
-  const [aiAnalysis, setAIAnalysis] = useState<TaskReportAIAnalysis | null>(null);
-  const [aiBreakdown, setAIBreakdown] = useState<AIBreakdown | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [loadingAI, setLoadingAI] = useState(false);
-  const [loadingBreakdown, setLoadingBreakdown] = useState(false);
   const [addedToDescription, setAddedToDescription] = useState(false);
-  const [aiSource, setAISource] = useState<'ai' | 'rule_based'>('rule_based');
 
   const { addCustomOption } = useTaskReportOptionsStore();
   const { updateTask } = useTaskStore();
@@ -73,18 +59,19 @@ export const TaskReportDialog = ({ task, onClose, preselectedOption }: TaskRepor
     submitReport(freeText);
   };
 
-  const submitReport = async (text: string) => {
+  const submitReport = (text: string) => {
     setSubmitting(true);
     const now = new Date();
-
-    // Rule-based analysis (synchronous, always runs)
-    const result = analyzeTaskReport({ task, selectedOption, freeText: text, now });
+    const result = analyzeTaskReport({
+      task,
+      selectedOption,
+      freeText: text,
+      now,
+    });
     setAnalysis(result);
-    setAISource('rule_based');
 
     const dateIso = now.toISOString().split('T')[0];
 
-    // Log learning event
     logLearningEvent({
       userId: USER_ID,
       taskId: task.id,
@@ -112,7 +99,11 @@ export const TaskReportDialog = ({ task, onClose, preselectedOption }: TaskRepor
       },
     });
 
-    if (BREAKDOWN_OPTIONS.has(selectedOption)) {
+    if (
+      selectedOption === 'unclear_first_step' ||
+      selectedOption === 'too_big' ||
+      selectedOption === 'dependency_missing'
+    ) {
       logLearningEvent({
         userId: USER_ID,
         taskId: task.id,
@@ -133,45 +124,6 @@ export const TaskReportDialog = ({ task, onClose, preselectedOption }: TaskRepor
 
     setSubmitting(false);
     setStep('result');
-
-    // After showing rule-based result, try AI analysis in background (fire-and-forget display)
-    setLoadingAI(true);
-    try {
-      const aiResult = await taskReportPreviewAI({
-        taskTitle: task.title,
-        taskDescription: task.description ?? undefined,
-        selectedOption,
-        selectedLabel,
-        freeText: text || undefined,
-      });
-      if (aiResult.ok && aiResult.analysis) {
-        setAIAnalysis(aiResult.analysis);
-        setAISource('ai');
-      }
-    } catch {
-      // Silent fallback — rule-based analysis already shown
-    } finally {
-      setLoadingAI(false);
-    }
-  };
-
-  const handleRequestAIBreakdown = async () => {
-    setLoadingBreakdown(true);
-    try {
-      const result = await breakdownPreviewAI({
-        taskTitle: task.title,
-        taskDescription: task.description ?? undefined,
-        selectedOption,
-        freeText: freeText || undefined,
-      });
-      if (result.ok && result.breakdown) {
-        setAIBreakdown(result.breakdown);
-      }
-    } catch {
-      // Silent — rule-based breakdown still shown
-    } finally {
-      setLoadingBreakdown(false);
-    }
   };
 
   const handleSaveCustom = () => {
@@ -180,22 +132,13 @@ export const TaskReportDialog = ({ task, onClose, preselectedOption }: TaskRepor
     setShowSaveCustom(false);
   };
 
-  // Determine which breakdown data to show: AI > rule-based
-  const blueprintToShow = aiBreakdown
-    ? {
-        goal: aiBreakdown.goal,
-        firstStep: aiBreakdown.firstStep,
-        resourcesNeeded: aiBreakdown.resourcesNeeded,
-        steps: aiBreakdown.steps,
-        assumptions: aiBreakdown.assumptions,
-      }
-    : analysis?.operationalBlueprint ?? null;
-
   const handleAddToDescription = () => {
-    if (!blueprintToShow) return;
+    if (!analysis) return;
+    const blueprint = analysis.operationalBlueprint;
+    if (!blueprint) return;
     const lines = [
       `פירוק שלבים:`,
-      ...blueprintToShow.steps.map((s, i) => `${i + 1}. ${s}`),
+      ...blueprint.steps.map((s, i) => `${i + 1}. ${s}`),
     ];
     const addition = lines.join('\n');
     const newDesc = task.description ? `${task.description}\n\n${addition}` : addition;
@@ -209,14 +152,10 @@ export const TaskReportDialog = ({ task, onClose, preselectedOption }: TaskRepor
         eventType: 'task_breakdown_requested' as never,
         source: 'task_report_dialog_add_desc_fallback',
         taskTitleSnapshot: task.title,
-        metadata: { blueprintSteps: blueprintToShow.steps },
+        metadata: { blueprintSteps: blueprint.steps },
       });
     }
   };
-
-  // Use AI analysis if available, otherwise rule-based
-  const displayAnalysis = aiAnalysis ?? analysis;
-  const showBreakdownSection = BREAKDOWN_OPTIONS.has(selectedOption) && (blueprintToShow || aiBreakdown);
 
   return (
     <div
@@ -391,184 +330,41 @@ export const TaskReportDialog = ({ task, onClose, preselectedOption }: TaskRepor
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-4"
               >
-                {/* AI source badge */}
-                {(loadingAI || aiSource === 'ai') && (
-                  <div className="flex items-center gap-1.5">
-                    {loadingAI ? (
-                      <>
-                        <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
-                        <span className="text-xs text-purple-500">AI מנתח...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3 h-3 text-purple-500" />
-                        <span className="text-xs text-purple-500 font-medium">ניותח עם AI</span>
-                        <span className="text-[10px] text-muted-foreground">· task_only scope</span>
-                      </>
-                    )}
-                  </div>
-                )}
-
-                {/* Main result card */}
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20">
                   <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
                   <div className="space-y-1 min-w-0">
                     <p className="text-sm font-medium">
                       דיווחת: <span className="text-primary">{selectedLabel}</span>
                     </p>
-                    <p className="text-sm text-foreground">
-                      {displayAnalysis?.immediateSuggestion ?? analysis.immediateSuggestion}
-                    </p>
+                    <p className="text-sm text-foreground">{analysis.immediateSuggestion}</p>
                   </div>
                 </div>
 
-                {/* Task meaning */}
-                {(displayAnalysis?.taskMeaning ?? analysis.taskMeaning) && (
+                {analysis.taskMeaning && (
                   <div className="text-xs text-muted-foreground px-1">
                     <span className="font-medium">הקשר המשימה: </span>
-                    {displayAnalysis?.taskMeaning ?? analysis.taskMeaning}
+                    {analysis.taskMeaning}
                   </div>
                 )}
 
-                {/* Consequence */}
-                {(displayAnalysis?.consequenceIfNotDone ?? analysis.consequenceIfNotDone) && (
+                {analysis.consequenceIfNotDone && (
                   <div className="text-xs text-muted-foreground px-1">
                     <span className="font-medium">שים לב: </span>
-                    {displayAnalysis?.consequenceIfNotDone ?? analysis.consequenceIfNotDone}
+                    {analysis.consequenceIfNotDone}
                   </div>
                 )}
 
-                {/* Follow-up questions */}
-                {(displayAnalysis?.followUpQuestions ?? analysis.followUpQuestions)?.length > 0 && (
+                {analysis.followUpQuestions && analysis.followUpQuestions.length > 0 && (
                   <div className="p-3 rounded-xl bg-secondary/50 border border-border space-y-1">
                     <div className="flex items-center gap-1.5">
                       <AlertCircle className="w-3.5 h-3.5 text-muted-foreground" />
                       <p className="text-xs font-medium text-muted-foreground">שאלה להבהרה</p>
                     </div>
-                    <p className="text-sm">
-                      {(displayAnalysis?.followUpQuestions ?? analysis.followUpQuestions)?.[0]}
-                    </p>
+                    <p className="text-sm">{analysis.followUpQuestions[0]}</p>
                   </div>
                 )}
 
-                {/* Breakdown section — for unclear_first_step / too_big / dependency_missing */}
-                {BREAKDOWN_OPTIONS.has(selectedOption) && (
-                  <div className="space-y-2">
-                    {/* AI breakdown trigger button */}
-                    {!aiBreakdown && !blueprintToShow && !loadingBreakdown && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full gap-2 text-xs"
-                        onClick={handleRequestAIBreakdown}
-                        data-testid="button-request-ai-breakdown"
-                      >
-                        <Brain className="w-3.5 h-3.5 text-purple-500" />
-                        AI יפרק את המשימה לצעדים
-                      </Button>
-                    )}
-
-                    {loadingBreakdown && (
-                      <div className="flex items-center justify-center gap-2 py-3 text-xs text-purple-500">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        <span>AI מפרק...</span>
-                      </div>
-                    )}
-
-                    {blueprintToShow && (
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-2">
-                          {aiBreakdown ? (
-                            <>
-                              <Sparkles className="w-3 h-3 text-purple-500" />
-                              <p className="text-xs font-medium text-purple-600 dark:text-purple-400">AI פרק את המשימה</p>
-                            </>
-                          ) : (
-                            <p className="text-xs font-medium text-muted-foreground">סינקו פירק את המשימה לצעד ראשון</p>
-                          )}
-                        </div>
-                        <div className="p-3 rounded-xl bg-secondary/30 border border-border space-y-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1">מטרה</p>
-                            <p className="text-sm">{blueprintToShow.goal}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1">צעד ראשון</p>
-                            <p className="text-sm font-medium text-primary">
-                              {blueprintToShow.firstStep}
-                            </p>
-                          </div>
-                          {blueprintToShow.resourcesNeeded.length > 0 && (
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-1">צריך</p>
-                              <p className="text-sm">
-                                {blueprintToShow.resourcesNeeded.join(' · ')}
-                              </p>
-                            </div>
-                          )}
-                          {blueprintToShow.steps.length > 0 && (
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-1">שלבים מוצעים</p>
-                              <ol className="space-y-1">
-                                {blueprintToShow.steps.map((s, i) => (
-                                  <li key={i} className="text-xs text-foreground flex gap-1.5">
-                                    <span className="text-muted-foreground flex-shrink-0">{i + 1}.</span>
-                                    <span>{s}</span>
-                                  </li>
-                                ))}
-                              </ol>
-                            </div>
-                          )}
-                          {blueprintToShow.assumptions.length > 0 && (
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-1">הנחות</p>
-                              <p className="text-xs text-muted-foreground">
-                                {blueprintToShow.assumptions.join(' · ')}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs"
-                            onClick={handleAddToDescription}
-                            disabled={addedToDescription}
-                            data-testid="button-add-to-description"
-                          >
-                            {addedToDescription ? '✓ נוסף לתיאור' : 'הוסף לתיאור המשימה'}
-                          </Button>
-                          {!aiBreakdown && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs gap-1.5"
-                              onClick={handleRequestAIBreakdown}
-                              disabled={loadingBreakdown}
-                              data-testid="button-upgrade-to-ai-breakdown"
-                            >
-                              <Sparkles className="w-3 h-3 text-purple-500" />
-                              שפר עם AI
-                            </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-xs"
-                            onClick={onClose}
-                            data-testid="button-blueprint-close"
-                          >
-                            זה לא מתאים, אשנה ידנית
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Rule-based breakdown (no BREAKDOWN_OPTIONS) */}
-                {!BREAKDOWN_OPTIONS.has(selectedOption) && analysis.operationalBlueprint && !aiBreakdown && (
+                {analysis.operationalBlueprint && (
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-muted-foreground">סינקו פירק את המשימה לצעד ראשון</p>
                     <div className="p-3 rounded-xl bg-secondary/30 border border-border space-y-3">
@@ -585,7 +381,9 @@ export const TaskReportDialog = ({ task, onClose, preselectedOption }: TaskRepor
                       {analysis.operationalBlueprint.resourcesNeeded.length > 0 && (
                         <div>
                           <p className="text-xs text-muted-foreground mb-1">צריך</p>
-                          <p className="text-sm">{analysis.operationalBlueprint.resourcesNeeded.join(' · ')}</p>
+                          <p className="text-sm">
+                            {analysis.operationalBlueprint.resourcesNeeded.join(' · ')}
+                          </p>
                         </div>
                       )}
                       {analysis.suggestedBreakdown && (
@@ -634,7 +432,6 @@ export const TaskReportDialog = ({ task, onClose, preselectedOption }: TaskRepor
                   </div>
                 )}
 
-                {/* Save custom option prompt */}
                 {showSaveCustom && (
                   <motion.div
                     initial={{ opacity: 0, y: 4 }}

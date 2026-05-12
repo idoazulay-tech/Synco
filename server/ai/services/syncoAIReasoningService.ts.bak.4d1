@@ -4,18 +4,14 @@ import {
   ParsedPlanningIntentSchema,
   TaskBreakdownSchema,
   DayCommandIntentSchema,
-  TaskReportAIAnalysisSchema,
   type ParsedPlanningIntent,
   type TaskBreakdown,
   type DayCommandIntent,
-  type TaskReportAIAnalysis,
 } from '../schemas/syncoAISchemas.js';
 import {
   PARSE_PLANNING_SYSTEM_PROMPT,
   DAY_COMMAND_SYSTEM_PROMPT,
   TASK_BREAKDOWN_SYSTEM_PROMPT,
-  TASK_REPORT_SYSTEM_PROMPT,
-  TASK_GUIDANCE_SYSTEM_PROMPT,
 } from '../prompts/syncoSystemPrompts.js';
 import {
   validateDayCommandIntent,
@@ -42,18 +38,6 @@ export type DayCommandResult =
 export type BreakdownResult =
   | (TaskBreakdown & { ok: true })
   | DisabledResult;
-
-export type TaskReportResult =
-  | (TaskReportAIAnalysis & { ok: true })
-  | DisabledResult;
-
-export interface TaskGuidanceResult {
-  ok: boolean;
-  explanation: string;
-  firstStep: string;
-  confidence: 'low' | 'medium' | 'high';
-  source: 'ai' | 'fallback';
-}
 
 // ─── Parse planning input with AI ─────────────────────────────────────────────
 
@@ -236,95 +220,4 @@ export async function buildTaskBreakdownWithAI(params: {
   if (!validation.ok) return { ok: false, reason: 'ai_validation_failed' };
 
   return { ...parsed.data, ok: true };
-}
-
-// ─── Analyze task report with AI ──────────────────────────────────────────────
-
-export async function analyzeTaskReportWithAI(params: {
-  taskTitle: string;
-  taskDescription?: string;
-  selectedOption: string;
-  selectedLabel: string;
-  freeText?: string;
-}): Promise<TaskReportResult> {
-  if (!AI_FEATURES.enabled) return { ok: false, reason: 'ai_disabled' };
-  if (!AI_FEATURES.taskReportEnabled) return { ok: false, reason: 'feature_disabled' };
-
-  const provider = getAIProvider();
-  const userPrompt = `משימה: "${params.taskTitle}"${params.taskDescription ? `\nתיאור: ${params.taskDescription}` : ''}
-אפשרות שנבחרה: "${params.selectedLabel}" (id: ${params.selectedOption})${params.freeText ? `\nהמשתמש הסביר: "${params.freeText}"` : ''}
-
-נתח את הדיווח. scope=task_only. החזר JSON:`;
-
-  const response = await provider.generateStructured<unknown>({
-    systemPrompt: TASK_REPORT_SYSTEM_PROMPT,
-    userPrompt,
-    schemaName: 'TaskReportAIAnalysis',
-    temperature: 0.2,
-  });
-
-  if (!response.ok) return { ok: false, reason: 'ai_error' };
-
-  const parsed = TaskReportAIAnalysisSchema.safeParse(response.data);
-  if (!parsed.success) {
-    console.warn('[analyzeTaskReportWithAI] schema validation failed:', parsed.error.message);
-    return { ok: false, reason: 'ai_validation_failed' };
-  }
-
-  // Enforce scope=task_only — never allow scope to widen
-  const data = { ...parsed.data, scope: 'task_only' as const };
-
-  return { ...data, ok: true };
-}
-
-// ─── Get task guidance with AI (why now / help me start) ──────────────────────
-
-export async function getTaskGuidanceWithAI(params: {
-  taskTitle: string;
-  taskDescription?: string;
-  startTime?: string;
-  nowIso?: string;
-}): Promise<TaskGuidanceResult> {
-  if (!AI_FEATURES.enabled || !AI_FEATURES.taskReportEnabled) {
-    return {
-      ok: false,
-      explanation: '',
-      firstStep: '',
-      confidence: 'low',
-      source: 'fallback',
-    };
-  }
-
-  const provider = getAIProvider();
-  const userPrompt = `משימה: "${params.taskTitle}"${params.taskDescription ? `\nתיאור: ${params.taskDescription}` : ''}${params.startTime ? `\nשעת התחלה: ${params.startTime}` : ''}${params.nowIso ? `\nעכשיו: ${params.nowIso}` : ''}
-
-תן הסבר קצר למה כדאי להתחיל עכשיו, וצעד ראשון קונקרטי. החזר JSON:`;
-
-  try {
-    const response = await provider.generateStructured<unknown>({
-      systemPrompt: TASK_GUIDANCE_SYSTEM_PROMPT,
-      userPrompt,
-      schemaName: 'TaskGuidance',
-      temperature: 0.3,
-    });
-
-    if (!response.ok) throw new Error('ai_error');
-
-    const data = response.data as any;
-    return {
-      ok: true,
-      explanation: typeof data?.explanation === 'string' ? data.explanation : '',
-      firstStep: typeof data?.firstStep === 'string' ? data.firstStep : '',
-      confidence: ['low', 'medium', 'high'].includes(data?.confidence) ? data.confidence : 'medium',
-      source: 'ai',
-    };
-  } catch {
-    return {
-      ok: false,
-      explanation: '',
-      firstStep: '',
-      confidence: 'low',
-      source: 'fallback',
-    };
-  }
 }
