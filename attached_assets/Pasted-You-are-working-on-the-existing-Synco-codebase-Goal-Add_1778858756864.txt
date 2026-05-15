@@ -1,0 +1,95 @@
+You are working on the existing Synco codebase.
+
+Goal:
+Add an isolated test script for the new Synco Brain memory context foundation file.
+
+Important safety rules:
+- Do not modify existing AI service files.
+- Do not modify prompts.
+- Do not modify schemas.
+- Do not modify validators.
+- Do not modify routes.
+- Do not modify DB schema.
+- Do not connect Qdrant yet.
+- Do not connect this memory function to the AI pipeline yet.
+- Only add one new test script file.
+
+Existing new file:
+server/ai/memory/syncoMemoryContext.ts
+
+Create this new file:
+
+scripts/test-synco-memory-context.ts
+
+The script should import:
+- enrichUserPromptWithMemory
+- buildMemoryContextBlock
+- SyncoRetrievedMemory
+
+from:
+../server/ai/memory/syncoMemoryContext
+
+Test the following cases:
+
+1. Empty memories block
+- buildMemoryContextBlock([])
+- should return ""
+
+2. Memory block with 2 memories
+- create two fake SyncoRetrievedMemory objects
+- call buildMemoryContextBlock(memories)
+- verify the result includes:
+  [הקשר זיכרון רלוונטי של סינקו]
+  1.
+  2.
+  [סוף הקשר זיכרון]
+
+3. Valid input with no real memories yet
+- call enrichUserPromptWithMemory({
+    userId: "test-user",
+    text: "מחר אני צריך לסדר את היום שלי",
+    patternFamily: "generic_planning",
+    maxMemories: 5
+  })
+- expected:
+  ok === true
+  source === "memory_empty"
+  originalText === input text
+  enrichedText === input text
+  memories.length === 0
+  warnings.length === 0
+
+4. Missing userId
+- call with userId: ""
+- expected:
+  ok === false
+  source === "memory_error"
+  enrichedText unchanged
+
+5. Missing text
+- call with text: ""
+- expected:
+  ok === false
+  source === "memory_error"
+
+The script should:
+- Use simple assert-style checks
+- Print a clear success message if all tests pass
+- Throw an error if any test fails
+- Not use a test framework
+- Not require Vitest/Jest
+- Be runnable with:
+  npx tsx scripts/test-synco-memory-context.ts
+
+After creating the file, run:
+
+npx tsx scripts/test-synco-memory-context.ts
+npx tsc --noEmit
+
+Return:
+A. New test file path
+B. Full code created
+C. Test run result
+D. TypeScript check result
+E. Confirmation that no existing files were modified
+F. Next recommended step, but do not implement it
