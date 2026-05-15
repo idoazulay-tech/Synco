@@ -1,0 +1,80 @@
+You are working on the existing Synco codebase.
+
+Goal:
+Connect Synco memory enrichment to only one AI function:
+parsePlanningInputWithAI()
+
+This is the first active integration of Synco Brain Memory into the AI pipeline.
+
+Important safety rules:
+- Modify only server/ai/services/syncoAIReasoningService.ts
+- Do not modify prompts
+- Do not modify schemas
+- Do not modify validators
+- Do not modify routes
+- Do not modify frontend files
+- Do not modify DB schema
+- Do not connect memory enrichment to day-command yet
+- Do not connect memory enrichment to task-report yet
+- Do not connect memory enrichment to task breakdown yet
+- Do not connect memory enrichment to guidance yet
+- Do not change the response shape
+- Do not change API behavior when SYNCO_EXTERNAL_KNOWLEDGE_ENABLED is false
+- Keep the change minimal and reversible
+
+Existing memory function:
+server/ai/memory/syncoMemoryContext.ts
+
+Import:
+enrichUserPromptWithMemory
+
+from:
+../memory/syncoMemoryContext.js
+
+Task:
+Inside parsePlanningInputWithAI(), after userPrompt is built and before provider.generateStructured() is called:
+
+1. Call enrichUserPromptWithMemory({
+   userId,
+   text: userPrompt,
+   patternFamily: 'generic_planning',
+   maxMemories: 5
+})
+
+2. Use:
+   const finalUserPrompt = enriched.ok ? enriched.enrichedText : userPrompt;
+
+3. Pass finalUserPrompt into provider.generateStructured() instead of userPrompt.
+
+4. Do not expose memory results in the API response yet.
+5. Do not add fields to ParsedPlanningIntent.
+6. Do not log memory results yet.
+7. If memory is disabled, finalUserPrompt must be identical to userPrompt.
+8. If memory errors, the original userPrompt must still be used.
+9. The existing AI behavior should remain unchanged when SYNCO_EXTERNAL_KNOWLEDGE_ENABLED is not true.
+
+Very important:
+If parsePlanningInputWithAI() currently does not have a userId parameter, do not guess.
+Instead:
+- Use the safest existing userId source if already available in that function
+- If no userId exists, use 'default-user' only inside this function for now
+- Add a TODO comment saying this should later come from authenticated user/session context
+
+After the change, run:
+
+npx tsx scripts/test-synco-memory-context.ts
+npx tsc --noEmit
+
+If there are existing AI Hebrew tests, also run:
+
+npx tsx scripts/synco-ai-hebrew-tests.ts
+
+Return:
+A. Files modified
+B. Exact code changes made
+C. Whether parsePlanningInputWithAI had userId or used temporary default-user
+D. Test results
+E. TypeScript result
+F. Confirmation that no other AI functions were modified
+G. Confirmation that response shape did not change
+H. Next recommended step, but do not implement it

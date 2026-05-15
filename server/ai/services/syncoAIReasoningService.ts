@@ -1,5 +1,6 @@
 import { AI_FEATURES } from '../aiFeatureFlags.js';
 import { getAIProvider } from '../providers/getAIProvider.js';
+import { enrichUserPromptWithMemory } from '../memory/syncoMemoryContext.js';
 import {
   ParsedPlanningIntentSchema,
   TaskBreakdownSchema,
@@ -74,9 +75,21 @@ ${params.existingTasks?.length ? `משימות קיימות:\n${params.existingT
 
 החזר JSON:`;
 
+  // ── Synco Brain Memory enrichment ────────────────────────────────────────────
+  // TODO: replace 'default-user' with authenticated user/session userId once
+  //       auth is wired into this function's call-site.
+  const enriched = await enrichUserPromptWithMemory({
+    userId:        'default-user',
+    text:          userPrompt,
+    patternFamily: 'generic_planning',
+    maxMemories:   5,
+  });
+  const finalUserPrompt = enriched.ok ? enriched.enrichedText : userPrompt;
+  // ─────────────────────────────────────────────────────────────────────────────
+
   const response = await provider.generateStructured<unknown>({
     systemPrompt: PARSE_PLANNING_SYSTEM_PROMPT,
-    userPrompt,
+    userPrompt:   finalUserPrompt,
     schemaName: 'ParsedPlanningIntent',
     temperature: 0.2,
   });
