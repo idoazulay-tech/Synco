@@ -8,6 +8,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { useTaskStore } from '@/store/taskStore';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { DailyActivitySummaryCard } from '@/components/DailyActivitySummaryCard';
 
 type DateRange = '7days' | '30days' | '90days';
 
@@ -134,6 +135,14 @@ const StatisticsPage = () => {
 
         {/* Stats */}
         <div className="p-4 space-y-4">
+          {/* Daily activity summary from learning events */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <DailyActivitySummaryCard />
+          </motion.div>
+
           {/* Completion rate */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
