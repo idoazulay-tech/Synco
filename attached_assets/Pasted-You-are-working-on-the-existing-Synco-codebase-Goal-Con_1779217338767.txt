@@ -1,0 +1,98 @@
+You are working on the existing Synco codebase.
+
+Goal:
+Connect Synco Brain Memory to interpretDayCommandWithAI() using the existing Memory Confidence Policy.
+
+Current status:
+- Qdrant works.
+- Real OpenAI embeddings work.
+- Synco Memory Confidence Policy works.
+- parsePlanningInputWithAI() is already connected to memory and verified end-to-end.
+- weak_signal memory correctly caused clarification questions, not false assumptions.
+- interpretDayCommandWithAI() receives a real userId parameter.
+
+Important product principle:
+Synco must not treat weak memories as confirmed facts.
+Weak memories may only help ask better clarification questions.
+Suggested memories may be proposed carefully and confirmed.
+Active memories may be used as context, but high-impact actions still require confirmation.
+
+Important safety rules:
+- Modify only server/ai/services/syncoAIReasoningService.ts
+- Do not modify syncoMemoryContext.ts
+- Do not modify prompts
+- Do not modify schemas
+- Do not modify validators
+- Do not modify routes
+- Do not modify frontend
+- Do not change DB schema
+- Do not change response shapes
+- Do not connect memory to task-report, breakdown, or guidance yet
+- Keep the change minimal and reversible
+
+Task:
+Inside interpretDayCommandWithAI(), after userPrompt is built and before provider.generateStructured() is called:
+
+1. Call enrichUserPromptWithMemory({
+   userId,
+   text: userPrompt,
+   patternFamily: 'day_modification',
+   maxMemories: 5
+})
+
+2. Use:
+const finalUserPrompt = enriched.ok ? enriched.enrichedText : userPrompt;
+
+3. Pass finalUserPrompt into provider.generateStructured() instead of userPrompt.
+
+4. Do not expose memory results in the API response.
+5. Do not add fields to DayCommandIntent.
+6. Do not log memory content.
+7. If memory is disabled, finalUserPrompt must be identical to userPrompt.
+8. If memory errors, original userPrompt must still be used.
+9. Existing behavior must remain unchanged when SYNCO_EXTERNAL_KNOWLEDGE_ENABLED is not true.
+
+After the change, run:
+npx tsc --noEmit
+npx tsx scripts/test-synco-memory-context.ts
+
+Then run a safe direct diagnostic for interpretDayCommandWithAI() using:
+
+userId:
+"default-user"
+
+dateIso:
+today's date
+
+nowIso:
+current ISO time
+
+text:
+"תסדר לי את היום כי יש לי הרבה דברים פתוחים"
+
+existingTasks:
+[]
+
+selectedTaskIds:
+[]
+
+Report only:
+A. File modified
+B. Exact change made
+C. TypeScript result
+D. Memory test result
+E. interpretDayCommandWithAI diagnostic:
+   - ok true/false
+   - commandType
+   - questions.length
+   - operations.length
+   - confidence
+   - patternFamily
+   - patternName
+   - whether memory enrichment was attempted
+   - memory source
+   - confidence level if available
+   - whether weak_signal block was included
+F. Verify the AI did not create operations solely from weak memory
+G. Confirm no routes or response shapes changed
+H. Next recommended step, but do not implement it

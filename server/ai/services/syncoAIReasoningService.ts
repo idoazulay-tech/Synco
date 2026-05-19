@@ -161,9 +161,17 @@ ${tasksJson}
 
 החזר JSON:`;
 
+  const enriched = await enrichUserPromptWithMemory({
+    userId:        params.userId,
+    text:          userPrompt,
+    patternFamily: 'day_modification',
+    maxMemories:   5,
+  });
+  const finalUserPrompt = enriched.ok ? enriched.enrichedText : userPrompt;
+
   const response = await provider.generateStructured<unknown>({
     systemPrompt: DAY_COMMAND_SYSTEM_PROMPT,
-    userPrompt,
+    userPrompt:   finalUserPrompt,
     schemaName: 'DayCommandIntent',
     temperature: 0.15,
   });
