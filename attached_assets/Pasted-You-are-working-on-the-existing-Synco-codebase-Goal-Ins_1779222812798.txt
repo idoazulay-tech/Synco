@@ -1,0 +1,63 @@
+You are working on the existing Synco codebase.
+
+Goal:
+Inspect the existing learning event and task activity logging pipeline before connecting it to Synco Brain Memory ingestion.
+
+Current status:
+- Qdrant works.
+- Real OpenAI embeddings work.
+- Synco Memory Confidence Policy works.
+- parsePlanningInputWithAI is connected to memory.
+- interpretDayCommandWithAI is connected to memory.
+- Weak memories correctly cause clarification and do not create actions.
+- Now we need organic memory ingestion from real user activity.
+
+Important safety rules:
+- Do not modify any files.
+- Do not create files.
+- Do not refactor.
+- Do not change DB schema.
+- Do not change routes.
+- Do not connect new memory writes yet.
+- Do not modify prompts, schemas, validators, frontend, or AI services.
+- Only inspect and report.
+
+Please inspect these areas:
+
+1. src/lib/api/learningClient.ts
+2. src/store/taskStore.ts
+3. server/routes/learning*.ts or any learning routes
+4. server/brain/services/memory.ts
+5. server/brain/types/index.ts
+6. Any server-side service that writes LearningEvent records
+7. Any existing task lifecycle events:
+   - task_created
+   - task_completed
+   - task_rescheduled
+   - task_deleted
+   - task_updated
+   - task_started
+   - task_execution_completed
+   - task_report_submitted
+   - task_start_blocker_logged
+   - task_postponed
+   - task_energy_check
+   - task_breakdown_requested
+
+Questions to answer:
+
+A. What events are currently logged from the frontend?
+B. Where do those events go?
+C. Are they stored only in Postgres, or also in Qdrant?
+D. Is there already a backend hook where LearningEvent can be mirrored into Qdrant?
+E. What is the exact shape of a LearningEvent payload?
+F. What fields are available to create useful memory text?
+G. What userId is used?
+H. Which 3 event types are safest and most valuable to start ingesting into Qdrant?
+I. Which event types should NOT be ingested yet because they may create noisy or misleading memory?
+J. What is the smallest safe implementation plan for organic memory ingestion?
+K. Which file should be modified first, and why?
+L. What tests or diagnostics should run after the first implementation?
+
+Do not implement anything.
+Only inspect and report.
