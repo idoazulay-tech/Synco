@@ -1,0 +1,87 @@
+You are working on the existing Synco codebase.
+
+Goal:
+Verify the first active Synco Brain Memory integration inside parsePlanningInputWithAI() end-to-end.
+
+Current status:
+- Qdrant works.
+- Real OpenAI embeddings work.
+- Memory Confidence Policy is implemented.
+- A relevant memory for default-user exists.
+- enrichUserPromptWithMemory() returns:
+  source: memory_enriched
+  confidence level: weak_signal
+  best score around 0.3749
+- parsePlanningInputWithAI() is currently the only AI function connected to memory.
+
+Important safety rules:
+- Do not modify any files.
+- Do not create files.
+- Do not refactor.
+- Do not modify prompts.
+- Do not modify schemas.
+- Do not modify validators.
+- Do not modify routes.
+- Do not modify frontend.
+- Do not connect memory to additional AI functions.
+- Do not change DB schema.
+- Only run safe diagnostics.
+
+Task:
+
+1. Confirm SYNCO_EXTERNAL_KNOWLEDGE_ENABLED is true.
+Do not print secret values.
+
+2. Run a direct call to parsePlanningInputWithAI() with:
+
+text:
+"אני צריך לסדר את היום שלי ויש לי הרבה דברים פתוחים"
+
+dateIso:
+today's date
+
+existingTasks:
+[]
+
+3. Confirm whether parsePlanningInputWithAI internally reaches memory enrichment.
+Since memory results are not exposed in the API response, use safe temporary console output only if needed, but do not print full private memory content.
+Report only:
+- whether enrichment was attempted
+- memory source
+- memories.length
+- best score
+- confidence level
+- whether weak_signal block was added to finalUserPrompt
+
+4. Report the parsePlanningInputWithAI result:
+- ok true/false
+- parser
+- tasks.length
+- questions.length
+- assumptions.length
+- warnings.length
+- confidence
+- patternFamily
+- patternName
+
+5. Check that the AI response does NOT treat the weak memory as confirmed fact.
+Specifically verify:
+- It should not say "the user always..."
+- It should not create a hard decision solely from memory
+- It should ask clarification if needed
+- It should remain cautious
+
+6. Run:
+npx tsc --noEmit
+npx tsx scripts/test-synco-memory-context.ts
+
+Return:
+A. Environment flag status
+B. Whether parsePlanningInputWithAI attempted memory enrichment
+C. Memory enrichment diagnostic summary without private content
+D. parsePlanningInputWithAI result summary
+E. Whether weak_signal was handled cautiously
+F. TypeScript result
+G. Memory test result
+H. Confirmation that no files were modified
+I. Next recommended step, but do not implement it
